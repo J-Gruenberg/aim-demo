@@ -1,0 +1,13 @@
+import Link from 'next/link';
+
+export default function NichtGefunden() {
+  return (
+    <main className="min-h-dvh grid place-items-center p-6">
+      <div className="text-center">
+        <p className="text-[12px] uppercase tracking-[0.16em] text-hell">404</p>
+        <h1 className="text-2xl font-semibold mt-2">Diese Seite gibt es nicht.</h1>
+        <Link href="/" className="knopf-zweit mt-6">Zu den Kalkulationen</Link>
+      </div>
+    </main>
+  );
+}

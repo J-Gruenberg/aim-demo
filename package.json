@@ -1,0 +1,43 @@
+{
+  "name": "aim-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.1158.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1158.0",
+    "@napi-rs/canvas": "0.1.80",
+    "@supabase/ssr": "0.6.1",
+    "@supabase/supabase-js": "^2.118.0",
+    "@vercel/oidc": "4.0.4",
+    "@vercel/oidc-aws-credentials-provider": "^3.3.16",
+    "exceljs": "4.4.0",
+    "fast-xml-parser": "5.11.2",
+    "geist": "1.8.2",
+    "lucide-react": "0.577.0",
+    "next": "15.5.28",
+    "pdf-lib": "1.17.1",
+    "react": "19.2.9",
+    "react-dom": "19.2.9",
+    "server-only": "0.0.1",
+    "unpdf": "1.9.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "packageManager": "pnpm@10.17.1"
+}
