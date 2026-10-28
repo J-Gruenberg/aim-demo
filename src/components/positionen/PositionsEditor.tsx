@@ -186,8 +186,9 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     return neu;
   }
 
-  async function hochladen(files: FileList | File[]) {
-    if (!darfSchreiben) return;
+  async function hochladen(files: FileList | File[]): Promise<Datei[]> {
+    const neu: Datei[] = [];
+    if (!darfSchreiben) return neu;
     setLaeuft('Lade hoch …');
     for (const f of Array.from(files)) {
       const sicher = f.name
@@ -200,9 +201,37 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         continue;
       }
       const { data } = await sb.from('dateien').insert({ projekt_id: projekt.id, pfad, name: f.name, groesse: f.size, art: artErkennen(f.name, modus) }).select('*').single();
-      if (data) setDateien((d) => [...d, data as Datei]);
+      if (data) {
+        setDateien((d) => [...d, data as Datei]);
+        neu.push(data as Datei);
+      }
     }
     setLaeuft(null);
+    return neu;
+  }
+
+  /** Vorführung ohne eigene Zeichnung: drei ausgedachte Werkstattzeichnungen hochladen und direkt lesen. */
+  async function beispieleLaden() {
+    setLaeuft('Lade Beispielzeichnungen …');
+    const namen = ['Beispiel_BSP-101_Stuetze_S1.pdf', 'Beispiel_BSP-102_Traeger_T1.pdf', 'Beispiel_BSP-103_Konsole_K1.pdf'];
+    try {
+      const files = await Promise.all(
+        namen.map(async (n) => {
+          const r = await fetch(`/beispiele/${n}`);
+          if (!r.ok) throw new Error(n);
+          return new File([await r.blob()], n, { type: 'application/pdf' });
+        }),
+      );
+      if (meta.titel.startsWith('Neue Anfrage')) await metaSpeichern({ ...meta, titel: 'Lagererweiterung Halle 3 (Beispiel)', kunde: meta.kunde || 'Muster Bau GmbH', ort: meta.ort || 'Musterstadt' });
+      const neu = await hochladen(files);
+      let n = 0;
+      for (const d of neu) n += await zeichnungLesen(d, true);
+      setLaeuft(null);
+      zeige(true, `${neu.length} Beispielzeichnungen gelesen, ${n} Positionen kalkuliert.`);
+    } catch {
+      setLaeuft(null);
+      zeige(false, 'Beispielzeichnungen konnten nicht geladen werden.');
+    }
   }
 
   async function dateiArt(d: Datei, art: Datei['art']) {
@@ -486,9 +515,17 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             )}
           </div>
           {dateien.length === 0 && (
-            <button className="mt-3 w-full rounded-lg border-2 border-dashed border-linie-stark py-8 text-sm text-grau hover:border-tiefblau hover:text-tinte" onClick={() => darfSchreiben && dateiInput.current?.click()}>
-              Zeichnungen hierher ziehen oder klicken. Mehrere Dateien auf einmal gehen.
-            </button>
+            <div className="mt-3 grid sm:grid-cols-[1fr_auto] gap-3">
+              <button className="rounded-lg border-2 border-dashed border-linie-stark py-8 text-sm text-grau hover:border-tiefblau hover:text-tinte" onClick={() => darfSchreiben && dateiInput.current?.click()}>
+                Zeichnungen hierher ziehen oder klicken. Mehrere Dateien auf einmal gehen.
+              </button>
+              {darfSchreiben && (
+                <button className="rounded-lg border border-linie-stark px-6 py-4 text-sm hover:border-tiefblau text-left" disabled={!!laeuft} onClick={beispieleLaden}>
+                  <div className="font-medium">Mit Beispielzeichnungen ausprobieren</div>
+                  <div className="text-[12px] text-grau">Stütze, Träger, Konsole, rund 2 Minuten</div>
+                </button>
+              )}
+            </div>
           )}
           {dateien.length > 0 && (
             <div className="overflow-x-auto mt-3">
