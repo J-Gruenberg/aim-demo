@@ -25,7 +25,7 @@ const VERSATZ_MS = 170;
  * Das LV rattert durch: Zeilen laufen beim Lesen ein, die Positionen im aktuellen Paket werden abgetastet,
  * fertige Preise zählen hoch und blitzen kurz auf. Die Zahlen sind die echten Ergebnisse, nur das Hochzählen ist Animation.
  */
-export function LiveLvTabelle({ zeilen, aktiv, laeuft, takt }: { zeilen: LiveZeile[]; aktiv: string[]; laeuft: boolean; takt: number }) {
+export function LiveLvTabelle({ zeilen, aktiv, laeuft, takt, onZeile }: { zeilen: LiveZeile[]; aktiv: string[]; laeuft: boolean; takt: number; onZeile?: (id: string) => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const reihen = useRef(new Map<string, HTMLDivElement>());
   const paketIndex = useRef(new Map<string, number>());
@@ -87,6 +87,7 @@ export function LiveLvTabelle({ zeilen, aktiv, laeuft, takt }: { zeilen: LiveZei
                 schritt={SCHRITTE[(Math.floor(takt / 1300) + (paketIndex.current.get(z.id) ?? 0)) % SCHRITTE.length]}
                 verzoegerung={(paketIndex.current.get(z.id) ?? 0) * VERSATZ_MS}
                 anmelden={(el) => (el ? reihen.current.set(z.id, el) : reihen.current.delete(z.id))}
+                onOeffnen={onZeile && z.fertig ? () => onZeile(z.id) : undefined}
               />
             </Fragment>
           );
@@ -97,7 +98,7 @@ export function LiveLvTabelle({ zeilen, aktiv, laeuft, takt }: { zeilen: LiveZei
   );
 }
 
-function Zeile({ z, index, aktiv, schritt, verzoegerung, anmelden }: { z: LiveZeile; index: number; aktiv: boolean; schritt: string; verzoegerung: number; anmelden: (el: HTMLDivElement | null) => void }) {
+function Zeile({ z, index, aktiv, schritt, verzoegerung, anmelden, onOeffnen }: { z: LiveZeile; index: number; aktiv: boolean; schritt: string; verzoegerung: number; anmelden: (el: HTMLDivElement | null) => void; onOeffnen?: () => void }) {
   const schonFertig = useRef(z.fertig);
   // f: Fortschritt des Hochzählens, 1 = Endwert. Fertig beim Öffnen: sofort 1, frisch fertig: zählt nach Versatz hoch
   const [f, setF] = useState(z.fertig ? 1 : 0);
@@ -130,9 +131,14 @@ function Zeile({ z, index, aktiv, schritt, verzoegerung, anmelden }: { z: LiveZe
   return (
     <div
       ref={anmelden}
+      role={onOeffnen ? 'button' : undefined}
+      tabIndex={onOeffnen ? 0 : undefined}
+      title={onOeffnen ? 'Position öffnen' : undefined}
+      onClick={onOeffnen}
+      onKeyDown={onOeffnen ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOeffnen()) : undefined}
       className={`live-rein relative mb-1 grid grid-cols-[84px_minmax(0,1fr)_112px_120px_136px] items-center gap-3 overflow-hidden rounded-xl px-4 py-2.5 transition-colors duration-300 max-sm:grid-cols-[72px_minmax(0,1fr)_110px] ${
         rechnet ? 'live-zeile-scan bg-[#5EEAD4]/[0.09] ring-1 ring-[#5EEAD4]/45' : z.fertig ? 'bg-white/[0.035]' : 'bg-transparent'
-      } ${blitz ? 'live-blitz' : ''}`}
+      } ${onOeffnen ? 'cursor-pointer hover:bg-white/[0.08] hover:ring-1 hover:ring-[#5EEAD4]/40' : ''} ${blitz ? 'live-blitz' : ''}`}
       style={{ animationDelay: blitz ? '0ms' : `${Math.min(index, 45) * 28}ms` }}
     >
       <span className={`zahl justify-self-start rounded-full px-2 py-0.5 text-[13px] font-semibold ${rechnet ? 'bg-[#5EEAD4] text-[#04211C]' : 'bg-[#0E8C7C]/35 text-[#BFF3EA]'}`}>{z.oz ?? '·'}</span>

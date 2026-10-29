@@ -1299,6 +1299,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 }))
               : undefined
           }
+          onZeile={(id) => {
+            // Fertige Position direkt erklären, während der Rest im Hintergrund weiterrechnet
+            setLiveOffen(false);
+            setOffenId(id);
+          }}
           onSchliessen={liveSchliessen}
         />
       )}

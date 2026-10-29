@@ -99,6 +99,7 @@ export function LiveAnsicht({
   modus,
   kennzahlen,
   zeilen,
+  onZeile,
   onSchliessen,
 }: {
   zustand: LiveZustand;
@@ -106,6 +107,8 @@ export function LiveAnsicht({
   kennzahlen: { positionen: number; summe: number; sicherheit: number | null };
   /** LV-Zeilen: ohne Blattbild zeigt die Bühne das Leistungsverzeichnis, das live durchgerechnet wird */
   zeilen?: LiveZeile[];
+  /** Klick auf eine fertige LV-Zeile: Position im Detail öffnen */
+  onZeile?: (id: string) => void;
   onSchliessen: () => void;
 }) {
   const wurzel = useRef<HTMLDivElement>(null);
@@ -212,7 +215,7 @@ export function LiveAnsicht({
                 )}
               </div>
             ) : zeilen && zeilen.length > 0 ? (
-              <LiveLvTabelle zeilen={zeilen} aktiv={zustand.phase === 'kalkulieren' ? (zustand.aktiv ?? []) : []} laeuft={zustand.laeuft} takt={jetzt - zustand.start} />
+              <LiveLvTabelle zeilen={zeilen} aktiv={zustand.phase === 'kalkulieren' ? (zustand.aktiv ?? []) : []} laeuft={zustand.laeuft} takt={jetzt - zustand.start} onZeile={onZeile} />
             ) : (
               <div className="flex flex-col items-center gap-4 text-center">
                 <span className="relative grid size-24 place-items-center rounded-[28px] bg-[#0E8C7C]/20 ring-1 ring-[#5EEAD4]/30">
