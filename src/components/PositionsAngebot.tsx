@@ -23,7 +23,7 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
       <style>{DRUCK_CSS}</style>
       <DruckLeiste zurueck={`/${typ}/${id}`} projektId={id} kopf={kopf} />
       {offen > 0 && (
-        <p className="nicht-drucken max-w-[210mm] mx-auto -mt-3 mb-4 rounded-lg bg-rot-hell text-rot text-sm px-3 py-2">
+        <p className="nicht-drucken max-w-[210mm] mx-auto -mt-3 mb-4 rounded-[6px] border-l-4 border-[#e0a03a] bg-gelb-hell text-gelb text-[14px] font-medium px-4 py-2.5">
           {offen} {offen === 1 ? 'Position ist' : 'Positionen sind'} noch nicht freigegeben. Bis dahin steht auf dem Ausdruck „Entwurf“.
         </p>
       )}

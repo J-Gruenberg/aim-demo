@@ -25,7 +25,7 @@ export function Vorschlaege({ start, darfSchreiben }: { start: Vorschlag[]; darf
         <p className="text-[12px] text-grau">Die Software lernt aus den Preisen, die Sie von Hand anpassen. Übernommen wird nichts ohne Ihr Okay.</p>
       </div>
       {liste.map((v) => (
-        <div key={v.id} className="rounded-lg bg-blau-hell/60 p-3 flex flex-wrap items-center gap-3">
+        <div key={v.id} className="rounded-[6px] bg-blau-hell/60 p-3 flex flex-wrap items-center gap-3">
           <div className="text-[13px] flex-1 min-w-[260px]"><div className="font-medium">{v.bezeichnung}</div>{v.begruendung}</div>
           {darfSchreiben && (
             <div className="flex gap-2">

@@ -383,6 +383,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       await neuLaden();
     }
     setLiestId(null);
+    if (neuGesamt) await summeSpeichern(await neuLaden());
     if (!still) {
       setLaeuft(null);
       if (neuGesamt) zeige(true, `${neuGesamt} Positionen aus ${d.name} gelesen und kalkuliert. Gelb markierte bitte prüfen.`);
@@ -679,7 +680,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             </div>
           )}
           {hinweise.length > 0 && (
-            <details className="mt-3 rounded-lg bg-papier px-3 py-2">
+            <details className="mt-3 rounded-[6px] bg-papier px-3 py-2">
               <summary className="text-sm cursor-pointer font-medium">Hinweise aus Vorbemerkungen ({hinweise.length})</summary>
               <ul className="mt-2 list-disc pl-5 text-[13px] text-grau space-y-0.5">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </details>
@@ -708,7 +709,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           {berichtOffen && (
             <div className="space-y-3">
               {abgleich && (
-                <div className="rounded-lg border border-linie p-3 space-y-2 text-[13px]">
+                <div className="rounded-[6px] border border-linie p-3 space-y-2 text-[13px]">
                   <div className="text-[12px] font-medium schmal text-tiefblau font-medium">Plan gegen LV · {abgleich.plaene.join(', ')}</div>
                   <p>{abgleich.zusammenfassung}</p>
                   {abgleich.fehlt_im_lv.length > 0 && (
@@ -864,8 +865,8 @@ function BaugruppeKurz({ p, stamm }: { p: Position; stamm: Stammdaten }) {
   const r = baugruppeRechnen(a, stamm);
   return (
     <span>
-      {a.zeichnung ? `${a.zeichnung} · ` : ''}
-      {zahl(r.kennzahlen.kg, 1)} kg · {zahl(r.kennzahlen.teile, 0)} Teile · {zahl(r.kennzahlen.stunden, 1)} h je Stück
+      {a.zeichnung ? `${a.zeichnung}, ` : ''}
+      {zahl(r.kennzahlen.kg, 1)} kg, {zahl(r.kennzahlen.teile, 0)} Teile, {zahl(r.kennzahlen.stunden, 1)} h je Stück
     </span>
   );
 }
@@ -954,7 +955,7 @@ function PositionsDetail({
           ) : (
             <div>
               {p.ansatz?.bereich && <div className="text-[11px] text-hell mb-1">{p.ansatz.bereich}</div>}
-              <p className="text-[13px] whitespace-pre-line leading-relaxed max-h-56 overflow-y-auto rounded-lg bg-papier p-3">{p.langtext || p.kurztext}</p>
+              <p className="text-[13px] whitespace-pre-line leading-relaxed max-h-56 overflow-y-auto rounded-[6px] bg-papier p-3">{p.langtext || p.kurztext}</p>
             </div>
           )}
 
@@ -964,27 +965,27 @@ function PositionsDetail({
           </div>
 
           {p.begruendung && (
-            <div className="rounded-lg border border-tiefblau/20 bg-blau-hell/50 p-3">
+            <div className="rounded-[6px] border border-tiefblau/20 bg-blau-hell/50 p-3">
               <div className="text-[12px] font-medium schmal text-tiefblau font-medium mb-1">Vorschlag der KI {p.sicherheit !== null ? `· Sicherheit ${Math.round((p.sicherheit ?? 0) * 100)} %` : ''}</div>
               <p className="text-[13px] leading-relaxed">{p.begruendung}</p>
             </div>
           )}
           {pruefePosition(p).length > 0 && (
-            <div className="rounded-lg bg-gelb-hell p-3 text-[13px] text-gelb space-y-1">
+            <div className="rounded-[6px] bg-gelb-hell p-3 text-[13px] text-gelb space-y-1">
               {pruefePosition(p).map((f, i) => <div key={i}>{f.stufe === 'warnung' ? '⚠ ' : ''}{f.text}</div>)}
             </div>
           )}
           {p.ansatz?.gleich_wie && <div className="text-[12px] text-grau">Gleiche Leistung wie OZ {p.ansatz.gleich_wie}, Ansatz übernommen.</div>}
           {!fremd && <ArchivListe p={p} onUebernehmen={(ep) => setAnsatz({ ...ansatz, ep_hand: ep })} darfSchreiben={darfSchreiben} />}
           {fremd && (
-            <div className="rounded-lg bg-gelb-hell p-3 text-[13px] text-gelb">
+            <div className="rounded-[6px] bg-gelb-hell p-3 text-[13px] text-gelb">
               Als Fremdgewerk erkannt, zählt nicht zur Summe. Wenn Sie die Leistung doch anbieten: unten einen Ansatz wählen und freigeben.
             </div>
           )}
 
           <AnsatzEditor ansatz={ansatz} onAnsatz={setAnsatz} />
 
-          <div className="rounded-lg border border-linie">
+          <div className="rounded-[6px] border border-linie">
             <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie">Rechenweg je Einheit</div>
             {istBe ? (
               <p className="px-3 py-2 text-[13px] text-grau">Prozentsatz der übrigen Summe, wird nach dem Speichern aktualisiert.</p>
@@ -1052,7 +1053,7 @@ function ArchivListe({ p, onUebernehmen, darfSchreiben }: { p: Position; onUeber
     setLaedt(false);
   }
   return (
-    <div className="rounded-lg border border-linie">
+    <div className="rounded-[6px] border border-linie">
       <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie flex items-center">
         Ähnlich aus Ihren Angeboten
         {!treffer && <button className="ml-auto knopf-leise knopf-klein" onClick={suchen} disabled={laedt}>{laedt ? 'Suche …' : 'Archiv durchsuchen'}</button>}

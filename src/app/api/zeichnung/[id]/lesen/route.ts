@@ -4,6 +4,7 @@ import { KiFehler } from '@/lib/ki';
 import { blattLesen, merkmaleAus, type GeleseneBaugruppe } from '@/lib/zeichnung-ki';
 import { baugruppeRechnen, stuecklistenText, teilart, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
 import { ladeStammdaten } from '@/lib/daten';
+import { summen, type Position } from '@/components/positionen/typen';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -67,6 +68,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return zeile;
       });
     if (neu.length) await sb.from('positionen').insert(neu);
+    // Summe der Kalkulation mitführen, damit Übersicht und Startseite stimmen
+    const { data: alle } = await sb.from('positionen').select('gp,typ,status,ansatz').eq('projekt_id', id);
+    const summe = summen((alle ?? []) as unknown as Position[]).gesamt;
+    await sb.from('projekte').update({ summe_netto: Math.round(summe * 100) / 100 }).eq('id', id);
 
     const { data: pr } = await sb.from('projekte').select('ergebnis').eq('id', id).single();
     const alt = (pr?.ergebnis?.hinweise as string[] | undefined) ?? [];

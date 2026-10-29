@@ -20,13 +20,13 @@ export function DruckLeiste({ zurueck, projektId, kopf, ansichten, ansicht }: { 
       <div className="flex flex-wrap items-center gap-2">
         <Link href={zurueck} className="knopf-leise knopf-klein">← Zur Kalkulation</Link>
         {ansichten && (
-          <div className="flex rounded-lg border border-linie-stark p-0.5 bg-papier">
+          <div className="flex rounded-[6px] border border-linie-stark overflow-hidden">
             {ansichten.map((a) => (
-              <Link key={a.wert} href={`?ansicht=${a.wert}`} className={`px-3 h-7 inline-flex items-center rounded-md text-[13px] ${ansicht === a.wert ? 'bg-flaeche shadow-sm font-medium' : 'text-grau'}`}>{a.label}</Link>
+              <Link key={a.wert} href={`?ansicht=${a.wert}`} className={`px-3 h-8 inline-flex items-center text-[13px] border-l border-linie first:border-l-0 ${ansicht === a.wert ? 'bg-tiefblau text-white font-semibold' : 'text-grau bg-flaeche hover:text-tiefblau'}`}>{a.label}</Link>
             ))}
           </div>
         )}
-        <span className="ml-auto text-[12px] text-hell">{stand}</span>
+        <span className="ml-auto text-[13px] text-hell">{stand}</span>
         <button className="knopf-primaer knopf-klein" onClick={() => window.print()}>Drucken / als PDF speichern</button>
       </div>
       <div className="grid sm:grid-cols-[120px_130px_1fr_auto] gap-2 items-end">

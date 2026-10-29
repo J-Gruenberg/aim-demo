@@ -28,7 +28,7 @@ export default function LoginSeite() {
           </div>
         </section>
       </main>
-      <Fusszeile />
+      <Fusszeile ohneAbstand />
     </div>
   );
 }
@@ -36,7 +36,7 @@ export default function LoginSeite() {
 /** Konstruktionsskizze einer Stütze mit Kopf- und Fußplatte, Maßketten und Positionsballons. */
 function Werkstattzeichnung() {
   return (
-    <svg className="absolute right-[-40px] top-[90px] w-[560px] opacity-[0.22] pointer-events-none" viewBox="0 0 560 520" aria-hidden>
+    <svg className="absolute right-[-150px] xl:right-[-60px] top-[70px] w-[540px] opacity-[0.2] pointer-events-none" viewBox="0 0 560 520" aria-hidden>
       <g fill="none" stroke="#fff" strokeLinecap="round">
         {/* Stütze in der Ansicht */}
         <g strokeWidth="1.8">

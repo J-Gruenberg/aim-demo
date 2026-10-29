@@ -41,7 +41,7 @@ export default function HilfeSeite() {
             <ul className="space-y-2">
               {BEISPIELE.map(([datei, text]) => (
                 <li key={datei}>
-                  <a href={`/beispiele/${datei}`} download className="block rounded-lg border border-linie px-3 py-2 hover:border-tiefblau">
+                  <a href={`/beispiele/${datei}`} download className="block rounded-[6px] border border-linie px-3 py-2 hover:border-tiefblau">
                     <div className="text-[13px] font-medium">{datei.replace('Beispiel_', '').replace('.pdf', '').replace(/_/g, ' ')}</div>
                     <div className="text-[12px] text-grau">{text}</div>
                   </a>

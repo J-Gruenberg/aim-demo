@@ -109,7 +109,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
       )}
 
       {e.gelesen && (e.gelesen.hinweise.length > 0 || e.gelesen.fehlend.length > 0) && (
-        <div className="rounded-xl border border-linie bg-flaeche px-4 py-3 text-[13px] space-y-1">
+        <div className="rounded-[6px] border border-linie bg-flaeche px-4 py-3 text-[13px] space-y-1">
           <div className="text-[12px] font-medium schmal text-hell">
             Aus {e.gelesen.quellen.join(', ')} übernommen am {datum(e.gelesen.datum)}
             <button className="ml-3 text-hell hover:text-rot" onClick={() => setze('gelesen', undefined)}>ausblenden</button>
@@ -128,7 +128,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
       </div>
 
       {erg.hinweise.length > 0 && (
-        <div className="rounded-xl border border-gelb/30 bg-gelb-hell px-4 py-3 text-sm text-gelb space-y-1">
+        <div className="rounded-[6px] border border-gelb/30 bg-gelb-hell px-4 py-3 text-sm text-gelb space-y-1">
           {erg.hinweise.map((h) => <p key={h}>{h}</p>)}
         </div>
       )}
@@ -310,7 +310,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
               </div>
               {e.stahl_kg_manuell ? <button className="knopf-leise knopf-klein mt-2" onClick={() => setze('stahl_kg_manuell', null)}>Zurück auf Stahlliste</button> : null}
               {erg.stahl.gegenprobe && (
-                <div className="mt-4 rounded-lg bg-papier border border-linie p-3">
+                <div className="mt-4 rounded-[6px] bg-papier border border-linie p-3">
                   <div className="flex items-baseline justify-between gap-3 text-[13px]">
                     <span className="font-medium">Gegenprobe ähnliche Hallen</span>
                     <span className="zahl">{zahl(erg.stahl.gegenprobe.kg_m2, 1)} kg/m² · {zahl(erg.stahl.gegenprobe.kg / 1000, 1)} t</span>
@@ -362,7 +362,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 
 function Kennzahl({ label, wert, sub, gross = false }: { label: string; wert: string; sub?: string; gross?: boolean }) {
   return (
-    <div className={`rounded-xl px-4 py-3 ${gross ? 'bg-tiefblau text-white' : 'karte'}`}>
+    <div className={`rounded-[6px] px-4 py-3 ${gross ? 'bg-tiefblau text-white' : 'karte'}`}>
       <div className={`text-[12px] font-medium schmal ${gross ? 'text-white/60' : 'text-hell'}`}>{label}</div>
       <div className={`zahl mt-1 font-semibold ${gross ? 'text-[24px]' : 'text-[20px]'}`}>{wert}</div>
       {sub && <div className={`text-[12px] ${gross ? 'text-white/60' : 'text-grau'}`}>{sub}</div>}

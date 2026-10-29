@@ -100,7 +100,7 @@ export function Schalter({ an, onAn, label }: { an: boolean; onAn: (v: boolean) 
 
 export function Auswahl<T extends string>({ wert, onWert, optionen }: { wert: T; onWert: (v: T) => void; optionen: { wert: T; label: string }[] }) {
   return (
-    <div className="flex rounded-lg border border-linie-stark p-0.5 bg-papier">
+    <div className="flex rounded-[6px] border border-linie-stark p-0.5 bg-papier">
       {optionen.map((o) => (
         <button
           key={o.wert}
