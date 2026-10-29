@@ -5,7 +5,7 @@ import { ladeStammdaten } from '@/lib/daten';
 import { automatischBenennen } from '@/lib/benennen';
 import { SATZ_VERSION, SCHEMA_SATZ, SYSTEM_SATZ, type SatzKi } from '@/lib/satz-ki';
 import { erinnern, hash, merken } from '@/lib/gedaechtnis';
-import { baugruppeRechnen, stuecklistenText, type BaugruppeAnsatz, type ZeichnungOberflaeche } from '@/lib/engine/zeichnung';
+import { GITTERROST, baugruppeRechnen, stuecklistenText, teilart, type BaugruppeAnsatz, type ZeichnungOberflaeche } from '@/lib/engine/zeichnung';
 import { rechnePosition, type Ansatz, type Oberflaeche } from '@/lib/engine/bauteile';
 import { summen, type Position } from '@/components/positionen/typen';
 
@@ -211,6 +211,31 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       quelle: 'satz:zusammenbau',
     });
   }
+  // Gitterroste, die schon in einer Baugruppe mit Katalogpreis stecken, nicht noch einmal als „Preis anfragen“ führen
+  const rostImPreis = lesungen.some((l) => ((l.ansatz as Partial<BaugruppeAnsatz>).teile ?? []).some((t) => t && teilart(t) === 'gitterrost'));
+  const istRost = (k: { bezeichnung: string; norm: string }) => GITTERROST.test(`${k.bezeichnung} ${k.norm}`) && !/halter|klemm|befestig|schraub/i.test(k.bezeichnung);
+  // Gitterrost als Fläche (m²) aus der Positionsliste: eigene Position mit Katalogpreis aus den Stammdaten statt „Preis anfragen“
+  const rostFlaechen = rostImPreis ? [] : daten.kaufteile.filter((k) => istRost(k) && /m²|m2|qm/i.test(`${k.bezeichnung} ${k.norm}`) && k.stk > 0);
+  daten.kaufteile = daten.kaufteile.filter((k) => !istRost(k) || (!rostImPreis && !rostFlaechen.includes(k)));
+  rostFlaechen.forEach((k, i) => {
+    const ansatz = { art: 'gitterrost_m2', montage: false };
+    const ep = rechnePosition(ansatz as unknown as Ansatz, k.stk, stamm).ep ?? 0;
+    zeilen.push({
+      oz: `G${i + 1}`,
+      kurztext: `${k.bezeichnung.replace(/\s*\(m²[^)]*\)/i, '')}`.slice(0, 200),
+      langtext: `${k.bezeichnung}${k.norm ? ` (${k.norm})` : ''}. Kaufteil, Fläche laut Positionsliste.`,
+      menge: k.stk,
+      einheit: 'm²',
+      typ: 'gitterrost_m2',
+      ansatz,
+      ep,
+      gp: r2(ep * k.stk),
+      sicherheit: 0.7,
+      status: 'pruefen',
+      begruendung: `Gitterrost als Kaufteil mit dem Flächenpreis aus Ihren Stammdaten gerechnet. Lieferantenpreis bei Bedarf eintragen.`,
+      quelle: 'satz:gitterrost',
+    });
+  });
   if (daten.kaufteile.length) {
     const stueck = daten.kaufteile.reduce((s, k) => s + (k.stk || 0), 0);
     zeilen.push({

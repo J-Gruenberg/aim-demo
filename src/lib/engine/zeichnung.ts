@@ -14,7 +14,7 @@
 import { metergewicht } from './profile';
 import { sd, type Stammdaten } from './stammdaten';
 
-export type Teilart = 'profil_schwer' | 'profil_leicht' | 'blech' | 'blech_dick' | 'kleinteil' | 'kaufteil';
+export type Teilart = 'profil_schwer' | 'profil_leicht' | 'blech' | 'blech_dick' | 'kleinteil' | 'kaufteil' | 'gitterrost';
 
 /** Eine Zeile der Stückliste, bezogen auf EINE Baugruppe. gewicht_kg = Gewicht der ganzen Zeile (alle Stück). */
 export type Teil = {
@@ -79,6 +79,8 @@ export type Kostenstelle = (typeof KOSTENSTELLEN)[number]['key'];
 // Normteile und Zukaufteile: gehen nicht ins Stahlgewicht, sondern als eigene Position „Preis anfragen“
 const KAUFTEIL =
   /\b(\w*schraube|mutter|scheibe|hv[- ]?garnitur|garnitur|kopfbolzen|anker|d[üu]bel|niet\w*|gewindestange|din\s?\d{3,4}|iso\s?\d{3,4}|\w*verschluss|southco|happich|dicht\w*|\w*gummi\w*|scharnier|stopfen|kappe|kabel\w*|verschraubung|clip|typenschild|aufkleber|kompressionsverschl\w*)\b/i;
+// Gitterroste und Gitterroststufen sind Zukauf mit Katalogpreis: Preis aus den Stammdaten, kein Stahl, kein Sägen, nicht verzinken
+export const GITTERROST = /gitterrost|rost\s*stufe|stufe\s*aus\s*gitterrost|pressrost|schweißpressrost|schweisspressrost/i;
 const BLECH = /^(bl|blech|pl|platte|riffel|tr[äa]nen|-)\b|^(bl|pl)\s?\d|\b(blech|platte|stirnplatte|kopfplatte|fu(ß|ss)platte|rippe|steife|knotenblech|lasche|futter)\b/i;
 const WALZ = /\b(he[abm]|hd|hl|ipe|ipn|upe|upn|u|l|t|rohr|ro|rro|qro|qr|rhs|shs|chs|vkt)\s?\d/i;
 const FLACH = /\b(fl|flach|flachstahl|rd|rund|rundstahl)\s?\d/i;
@@ -101,6 +103,7 @@ export function teilart(t: Pick<Teil, 'bezeichnung' | 'profil' | 'gewicht_kg' | 
   // Was ein Stahlprofil mit Maß hat (RD55, BL4, FL30*5, HEB200), wird gefertigt und ist nie ein Kaufteil,
   // auch wenn es Griff, Bolzen oder Anker heißt
   const stahlMitMass = BLECH.test(t.profil) || WALZ.test(t.profil) || FLACH.test(t.profil);
+  if (GITTERROST.test(text) && !/halter|klemm|befestig|schraub|mutter/i.test(text) && !stahlMitMass) return 'gitterrost';
   if (KAUFTEIL.test(text) && !stahlMitMass) return 'kaufteil';
   const einzel = t.gewicht_kg && t.stk > 0 ? t.gewicht_kg / t.stk : null;
   const istProfil = WALZ.test(t.profil) && !/^(bl|pl)/i.test(t.profil.trim());
@@ -133,6 +136,26 @@ export function teilGewicht(t: Teil): { kg: number; geschaetzt: boolean } {
   const kgm = metergewicht(t.profil.replace(/\*/g, 'x'));
   if (kgm && t.laenge_mm) return { kg: (kgm * t.laenge_mm * Math.max(t.stk, 1)) / 1000, geschaetzt: true };
   return { kg: 0, geschaetzt: true };
+}
+
+/** Einkaufspreis einer Gitterrost-Zeile (alle Stück): Stufen nach Breite, Flächenroste nach m². */
+export function gitterrostPreis(t: Pick<Teil, 'bezeichnung' | 'profil' | 'stk' | 'laenge_mm'>, stamm: Stammdaten): { betrag: number; text: string } {
+  const text = `${t.profil} ${t.bezeichnung ?? ''}`;
+  const masse = (text.replace(/,/g, '.').match(/(\d{3,4})\s*[x×*]\s*(\d{2,4})/) ?? []).slice(1).map(Number);
+  const [a, b] = masse.length === 2 ? masse : [t.laenge_mm ?? 0, 0];
+  const lang = Math.max(a, b);
+  const kurz = Math.min(a, b);
+  const stufe = /stufe/i.test(text) || (kurz > 0 && kurz <= 350);
+  const faktor = sd(stamm, 'faktor_gitterrost_m2') || 1;
+  if (stufe) {
+    const breit = lang > 1000;
+    const preis = sd(stamm, breit ? 'tr_gitterrost_stufe_breit_stk' : 'tr_gitterrost_stufe_stk') * faktor;
+    return { betrag: preis * t.stk, text: `${de(t.stk, 0)} Gitterroststufen ${breit ? 'über' : 'bis'} 1.000 mm × ${de(preis)} €` };
+  }
+  const m2 = lang > 0 && kurz > 0 ? (lang * kurz) / 1e6 : 0;
+  const preisM2 = sd(stamm, 'tr_gitterrost_m2') * faktor;
+  if (m2 > 0) return { betrag: m2 * t.stk * preisM2, text: `${de(t.stk, 0)} × Gitterrost ${de(lang, 0)} × ${de(kurz, 0)} mm (${de(m2 * t.stk, 2)} m²) × ${de(preisM2)} €/m²` };
+  return { betrag: 0, text: `${de(t.stk, 0)} × Gitterrost ohne Maße, Preis anfragen` };
 }
 
 export type Arbeitsgang = { text: string; kostenstelle: Kostenstelle; menge: number; einheit: string; h_je: number; stunden: number };
@@ -191,14 +214,25 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   let kgProfil = 0;
   let kgBlech = 0;
   let kgKauf = 0;
+  let kgRost = 0;
+  let rostStk = 0;
+  let rostEuro = 0;
+  const rostText: string[] = [];
   let geschaetzt = 0;
-  const anzahl: Record<Teilart, number> = { profil_schwer: 0, profil_leicht: 0, blech: 0, blech_dick: 0, kleinteil: 0, kaufteil: 0 };
+  const anzahl: Record<Teilart, number> = { profil_schwer: 0, profil_leicht: 0, blech: 0, blech_dick: 0, kleinteil: 0, kaufteil: 0, gitterrost: 0 };
   for (const t of teile) {
     const art = teilart(t);
     const g = teilGewicht(t);
     if (g.geschaetzt && g.kg > 0) geschaetzt++;
     anzahl[art] += t.stk;
     if (art === 'kaufteil') kgKauf += g.kg;
+    else if (art === 'gitterrost') {
+      kgRost += g.kg;
+      rostStk += t.stk;
+      const r = gitterrostPreis(t, stamm);
+      rostEuro += r.betrag;
+      rostText.push(r.text);
+    }
     else if (art === 'blech' || art === 'blech_dick' || art === 'kleinteil') kgBlech += g.kg;
     else kgProfil += g.kg;
   }
@@ -207,7 +241,9 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   const einzelprofile = anzahl.profil_schwer + anzahl.profil_leicht;
   if (geschaetzt) hinweise.push(`${geschaetzt} Stücklistenzeilen ohne Gewicht, aus Profil und Länge gerechnet`);
   if (a.gewicht_zeichnung_kg && kg > 0) {
-    const abw = Math.abs(kg - a.gewicht_zeichnung_kg) / a.gewicht_zeichnung_kg;
+    // Zeichnungsgewicht enthält meist auch Gitterroste und Normteile
+    const kgAlles = kg + kgRost + kgKauf;
+    const abw = Math.min(Math.abs(kg - a.gewicht_zeichnung_kg), Math.abs(kgAlles - a.gewicht_zeichnung_kg)) / a.gewicht_zeichnung_kg;
     if (abw > 0.02) hinweise.push(`Stückliste ${de(kg, 1)} kg, Zeichnung ${de(a.gewicht_zeichnung_kg, 1)} kg: Abweichung ${de(abw * 100, 0)} %, bitte prüfen`);
   }
 
@@ -217,7 +253,7 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   const kgMaterial = kgProfil * (1 + vProfil) + kgBlech * (1 + vBlech);
   const matProfil = kgProfil * (1 + vProfil) * sd(stamm, 'stahl_einkauf_kg');
   const matBlech = kgBlech * (1 + vBlech) * sd(stamm, 'blech_einkauf_kg');
-  const mek = matProfil + matBlech;
+  const mek = matProfil + matBlech + rostEuro;
 
   // 3. Arbeitsgänge
   const ag: Arbeitsgang[] = [];
@@ -233,7 +269,8 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   add('Bohren im Blech', 'ks_bohren', p0(m.bohrungen_blech), 'Bohrung', sd(stamm, 'zg_bohr_blech_h'));
   add('Kanten', 'ks_kanten', p0(m.kantungen), 'Kantung', sd(stamm, 'zg_kanten_h'));
   if (m.schweissbaugruppe && teileGefertigt > 1) {
-    const anbau = teileGefertigt - 1;
+    // Gitterroste werden angepasst und verschraubt, zählen also beim Zusammenbau mit
+    const anbau = teileGefertigt - 1 + rostStk;
     add('Zusammenbau je Anbauteil (Anreißen, Anpassen, Heften)', 'ks_schlosser', anbau, 'Stk', sd(stamm, 'zg_zusammenbau_h'));
     let naht = p0(m.naht_m);
     if (naht === 0) {
@@ -259,7 +296,7 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   // Bleche haben je Tonne viel mehr Oberfläche als Profile: beidseitig, aus Gewicht und Dicke (7,85 kg je m² und mm)
   const flaecheGeschaetzt = teile.reduce((summe, t) => {
     const art = teilart(t);
-    if (art === 'kaufteil') return summe;
+    if (art === 'kaufteil' || art === 'gitterrost') return summe;
     const g = teilGewicht(t).kg;
     const d = art === 'blech' || art === 'blech_dick' || art === 'kleinteil' ? blechdicke(t.profil) : null;
     return summe + (d && d > 0 && d <= 40 ? (2 * g) / (d * 7.85) : (g / 1000) * sd(stamm, 'zg_flaeche_m2_t'));
@@ -287,7 +324,8 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   const z = zuschlagskalkulation(mek, fek, fremd, stamm);
 
   const bausteine: { text: string; betrag: number }[] = [];
-  bausteine.push({ text: `Material ${de(kgMaterial, 1)} kg inkl. Verschnitt (Profile ${de(vProfil * 100, 0)} %, Bleche ${de(vBlech * 100, 0)} %)`, betrag: r2(mek) });
+  bausteine.push({ text: `Material ${de(kgMaterial, 1)} kg inkl. Verschnitt (Profile ${de(vProfil * 100, 0)} %, Bleche ${de(vBlech * 100, 0)} %)`, betrag: r2(matProfil + matBlech) });
+  if (rostEuro) bausteine.push({ text: `Gitterroste als Kaufteil, feuerverzinkt geliefert: ${rostText.join(', ')}`, betrag: r2(rostEuro) });
   if (z.mgk) bausteine.push({ text: `Materialgemeinkosten ${de(sd(stamm, 'zs_mgk'))} %`, betrag: r2(z.mgk) });
   for (const x of ag) {
     bausteine.push({
@@ -333,7 +371,7 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
 
 /** Kurzbeschreibung der Stückliste für den Angebotstext. */
 export function stuecklistenText(a: BaugruppeAnsatz): string {
-  const teile = (a.teile ?? []).filter((t) => t.stk > 0 && teilart(t) !== 'kaufteil');
+  const teile = (a.teile ?? []).filter((t) => t.stk > 0 && teilart(t) !== 'kaufteil' && teilart(t) !== 'gitterrost');
   const haupt = [...teile].sort((x, y) => teilGewicht(y).kg - teilGewicht(x).kg)[0];
   const kg = teile.reduce((s, t) => s + teilGewicht(t).kg, 0);
   const werkstoffe = Array.from(new Set(teile.map((t) => t.werkstoff).filter(Boolean)));

@@ -197,6 +197,7 @@ const TEILART: Record<string, string> = {
   blech_dick: 'Blech ab 20 mm',
   kleinteil: 'Kleinteil',
   kaufteil: 'Kaufteil',
+  gitterrost: 'Gitterrost (Kaufteil)',
 };
 
 function BaugruppeFelder({ a, onA }: { a: BaugruppeAnsatz; onA: (a: BaugruppeAnsatz) => void }) {
