@@ -134,9 +134,13 @@ export function ProjektAktionen({
 
   function umschalten() {
     if (lage) return setLage(null);
-    const r = knopf.current?.getBoundingClientRect();
-    if (!r) return;
-    const { clientWidth: breite, clientHeight: hoehe } = document.documentElement;
+    const b = knopf.current?.getBoundingClientRect();
+    if (!b) return;
+    // Auf großen Schirmen ist die Seite gezoomt (--aim-zoom): Messwerte kommen in Bildschirmpunkten, Stile in CSS-Punkten
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    const r = { top: b.top / z, bottom: b.bottom / z, right: b.right / z };
+    const breite = document.documentElement.clientWidth / z;
+    const hoehe = document.documentElement.clientHeight / z;
     const right = Math.max(8, breite - r.right);
     const platzUnten = hoehe - r.bottom;
     setLage(platzUnten < MENUE_HOEHE && r.top > platzUnten ? { bottom: hoehe - r.top + 6, right } : { top: r.bottom + 6, right });

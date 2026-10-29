@@ -42,7 +42,7 @@ function kuerzel(text: string) {
 export function Seitenleiste({ betrieb, ort }: { betrieb: string; ort: string }) {
   const pfad = usePathname();
   return (
-    <aside className="nicht-drucken sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-surface md:flex">
+    <aside className="nicht-drucken sticky top-0 hidden h-schirm w-[248px] shrink-0 flex-col border-r border-line bg-surface md:flex">
       <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-3.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold tracking-[0.02em] text-white" style={{ background: 'var(--brand-gradient)' }}>{kuerzel(betrieb)}</span>
         <span className="flex min-w-0 flex-col">

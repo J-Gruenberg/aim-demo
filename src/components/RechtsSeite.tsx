@@ -4,7 +4,7 @@ import { Fusszeile } from './Fusszeile';
 
 export function RechtsSeite({ titel, children }: { titel: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh flex flex-col">
+    <div className="min-h-schirm flex flex-col">
       <header className="bg-tiefblau">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link href="/"><AimMarke hell /></Link>

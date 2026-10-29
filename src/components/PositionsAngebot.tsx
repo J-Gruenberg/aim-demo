@@ -22,7 +22,7 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
   // Ausschreibung: alles muss freigegeben sein. Bauteile: nur offene, zu prüfende oder preislose Positionen zählen.
   const offen = pos.filter((x) => (typ === 'lv' ? x.status !== 'freigegeben' : x.status === 'offen' || x.status === 'pruefen' || x.ep === null)).length;
   return (
-    <div className="-mx-4 md:-mx-8 -mt-5 md:-mt-8 py-6 bg-papier min-h-dvh">
+    <div className="-mx-4 md:-mx-8 -mt-5 md:-mt-8 py-6 bg-papier min-h-schirm">
       <style>{DRUCK_CSS}</style>
       <DruckLeiste zurueck={`/${typ}/${id}`} projektId={id} kopf={kopf} />
       {offen > 0 && (

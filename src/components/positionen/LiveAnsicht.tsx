@@ -197,7 +197,7 @@ export function LiveAnsicht({
             {zustand.bild ? (
               <div className="relative max-h-full overflow-hidden rounded-xl bg-white shadow-[0_40px_100px_rgba(0,0,0,0.55)] ring-1 ring-white/20">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img key={zustand.bild} src={zustand.bild} alt={`Blatt ${zustand.blatt ?? ''} von ${zustand.datei ?? ''}`} className="live-rein block max-h-[calc(50dvh-120px)] w-auto max-w-full object-contain lg:max-h-[calc(100dvh-230px)]" />
+                <img key={zustand.bild} src={zustand.bild} alt={`Blatt ${zustand.blatt ?? ''} von ${zustand.datei ?? ''}`} className="live-rein block max-h-[calc(50dvh/var(--aim-zoom)_-_120px)] w-auto max-w-full object-contain lg:max-h-[calc(100dvh/var(--aim-zoom)_-_230px)]" />
                 {zustand.laeuft && zustand.phase === 'lesen' && (
                   <>
                     <div className="live-fokus" />

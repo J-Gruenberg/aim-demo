@@ -13,7 +13,7 @@ const SCHRITTE: { icon: LucideIcon; titel: string; text: string }[] = [
 
 export default function LoginSeite() {
   return (
-    <div className="aim-flaeche flex min-h-dvh flex-col">
+    <div className="aim-flaeche flex min-h-schirm flex-col">
       <main className="grid flex-1 gap-6 p-4 md:p-6 lg:grid-cols-[1.1fr_1fr]">
         <section className="aim-hero relative hidden flex-col justify-between overflow-hidden p-10 lg:flex xl:p-12">
           <AimMarke hell />
