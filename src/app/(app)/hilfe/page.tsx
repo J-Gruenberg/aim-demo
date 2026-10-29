@@ -9,10 +9,25 @@ const SCHRITTE = [
   ['Briefkopf', 'Unter „Betrieb“ Name und Anschrift eintragen. Jedes Angebot kommt dann auf diesem Briefkopf raus.'],
 ];
 
-const BEISPIELE = [
-  ['Beispiel_BSP-101_Stuetze_S1.pdf', 'Stütze HEB 200 mit Fuß- und Kopfplatte, 4 Stück, feuerverzinkt'],
-  ['Beispiel_BSP-102_Traeger_T1.pdf', 'Träger IPE 300 mit Stirnplatten, 3 Stück, beschichtet'],
-  ['Beispiel_BSP-103_Konsole_K1.pdf', 'Wandkonsole HEA 160 mit Ankerplatte, 6 Stück, feuerverzinkt'],
+const BEISPIELE: { gruppe: string; text: string; dateien: [string, string][] }[] = [
+  {
+    gruppe: 'Nach Zeichnung',
+    text: 'Unter „Nach Zeichnung“ ablegen.',
+    dateien: [
+      ['zeichnung/Stahltreppe_ST-01.pdf', 'Stahltreppe mit Podest, Zusammenbau, 19 Stücklistenpositionen, 660 kg'],
+      ['zeichnung/Lagerbuehne_LB-01_Satz.pdf', 'Lagerbühne als Zeichnungssatz, 5 Blätter, eine Unterzeichnung fehlt absichtlich'],
+    ],
+  },
+  {
+    gruppe: 'Ausschreibung',
+    text: 'Alle vier Dateien zusammen unter „Ausschreibung“ ablegen.',
+    dateien: [
+      ['ausschreibung/LV_Los12_Stahlbau_Schlosser.X83', 'LV als GAEB-Datei, 39 Positionen'],
+      ['ausschreibung/LV_Los12_Stahlbau_Schlosser.pdf', 'LV als PDF mit Vorbemerkungen'],
+      ['ausschreibung/Plan_TW-01_Treppe_Gelaender.pdf', 'Plan Treppe und Geländer'],
+      ['ausschreibung/Plan_TW-02_Vordach_Details.pdf', 'Plan Vordach und Details'],
+    ],
+  },
 ];
 
 export default function HilfeSeite() {
@@ -20,7 +35,7 @@ export default function HilfeSeite() {
     <div className="space-y-6">
       <div>
         <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950">Hilfe</h1>
-        <p className="text-grau text-sm mt-1">So arbeiten Sie mit AIM. Zum Ausprobieren liegen unten drei Beispielzeichnungen bereit.</p>
+        <p className="text-grau text-sm mt-1">So arbeiten Sie mit AIM. Zum Ausprobieren liegen rechts Beispielunterlagen bereit, alle frei erfunden.</p>
       </div>
       <div className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
         <section className="karte p-5">
@@ -36,18 +51,23 @@ export default function HilfeSeite() {
         </section>
         <aside className="space-y-4">
           <section className="karte p-4 space-y-3">
-            <h2 className="text-[16px] font-bold text-ink-950">Beispielzeichnungen</h2>
-            <p className="text-[13px] text-grau">Ausgedachte Werkstattzeichnungen mit Stückliste. Herunterladen und unter „Nach Zeichnung“ wieder ablegen.</p>
-            <ul className="space-y-2">
-              {BEISPIELE.map(([datei, text]) => (
-                <li key={datei}>
-                  <a href={`/beispiele/${datei}`} download className="block rounded-xl border border-linie px-3 py-2 hover:border-tiefblau">
-                    <div className="text-[13px] font-medium">{datei.replace('Beispiel_', '').replace('.pdf', '').replace(/_/g, ' ')}</div>
-                    <div className="text-[12px] text-grau">{text}</div>
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <h2 className="text-[16px] font-bold text-ink-950">Beispielunterlagen</h2>
+            <p className="text-[13px] text-grau">Ausgedachte Zeichnungen und eine ausgedachte Ausschreibung zum Ausprobieren. Herunterladen und wieder ablegen.</p>
+            {BEISPIELE.map((g) => (
+              <div key={g.gruppe} className="space-y-2">
+                <p className="pt-1 text-[13px] font-bold text-ink-950">{g.gruppe} <span className="font-normal text-grau">· {g.text}</span></p>
+                <ul className="space-y-2">
+                  {g.dateien.map(([datei, text]) => (
+                    <li key={datei}>
+                      <a href={`/beispiele/${datei}`} download className="block rounded-xl border border-linie px-3 py-2 hover:border-tiefblau">
+                        <div className="text-[13px] font-medium">{datei.split('/').pop()}</div>
+                        <div className="text-[12px] text-grau">{text}</div>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </section>
           <section className="karte p-4 text-[13px]">
             <h2 className="text-[16px] font-bold text-ink-950 mb-1">Fragen?</h2>
