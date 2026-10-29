@@ -50,7 +50,8 @@ export function pruefePosition(p: PosLike): Befund[] {
   if (p.status === 'offen') return b;
   if (!p.menge || p.menge <= 0) b.push({ stufe: 'warnung', text: 'Menge fehlt oder ist 0.' });
   if (p.ep === null) b.push({ stufe: 'warnung', text: 'Kein Einzelpreis.' });
-  if (p.sicherheit !== null && p.sicherheit < 0.6 && p.quelle !== 'hand') b.push({ stufe: 'warnung', text: `Die KI ist unsicher (${Math.round(p.sicherheit * 100)} %). Ansatz bitte prüfen.` });
+  // Gleiche Schwelle wie die Ampel: erst unter 50 % (orange und rot) ist eine Position unsicher
+  if (p.sicherheit !== null && p.sicherheit < 0.5 && p.quelle !== 'hand') b.push({ stufe: 'warnung', text: `Sicherheit ${Math.round(p.sicherheit * 100)} %: Annahmen in der Begründung ansehen.` });
 
   if (a.art === 'stahl_kg' && p.ep !== null && a.kg_je_einheit && a.kg_je_einheit > 0) {
     const eurKg = p.ep / a.kg_je_einheit;

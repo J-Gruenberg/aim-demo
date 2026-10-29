@@ -833,6 +833,8 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                   ? { text: 'Wird gelesen', ton: 'text-brand-strong', punkt: 'puls bg-brand' }
                   : n
                     ? { text: `Gelesen, ${n} ${n === 1 ? 'Position' : 'Positionen'}`, ton: 'text-ok', punkt: 'bg-ok-dot' }
+                    : (d.art === 'gaeb' || d.art === 'lv') && pos.some((p) => /^(gaeb|pdf):/.test(p.quelle ?? ''))
+                      ? { text: 'Nicht nötig, das LV ist schon gelesen', ton: 'text-ink-500', punkt: 'bg-ink-300' }
                     : d.art === 'lv' && gaebDa
                       ? { text: 'Nicht nötig, das LV kommt aus der GAEB-Datei', ton: 'text-ink-500', punkt: 'bg-ink-300' }
                       : d.art === 'plan'
