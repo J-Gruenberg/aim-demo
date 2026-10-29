@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Seitenleiste betrieb={betrieb.firma} ort={betrieb.ort.replace(/^\d{5}\s*/, '')} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Kopfzeile name={profil.name ?? profil.email} rolle={profil.rolle} darfSchreiben={profil.rolle !== 'leser'} />
-        <main className="mx-auto w-full max-w-[1480px] flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-8 md:pt-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1400px] flex-1 2xl:max-w-[1760px] px-4 pb-24 pt-5 md:px-8 md:pb-8 md:pt-8">{children}</main>
         <Fusszeile />
       </div>
       <MobilNav />

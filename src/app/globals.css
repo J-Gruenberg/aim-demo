@@ -39,6 +39,8 @@
 }
 
 @theme {
+  /* Große Schirme ab 1900 px: mehr Spalten statt größerer Schrift */
+  --breakpoint-3xl: 118.75rem;
   --color-paper: #F4F7F6;
   --color-surface: #FFFFFF;
   --color-sunken: #ECF1F0;
@@ -94,19 +96,10 @@
 }
 
 /*
-  Vollbild auf großen Schirmen: Die ganze Oberfläche wächst mit dem Bildschirm, statt als schmale Spalte
-  in der Mitte zu stehen. Viewport-Höhen (dvh) wachsen mit dem Zoom mit, deshalb Bildschirmhöhen nur über
-  h-schirm und min-h-schirm. Gedruckt wird ohne Zoom.
+  Bildschirmhöhen über h-schirm und min-h-schirm. --aim-zoom bleibt 1: Große Schirme bekommen mehr Breite,
+  nicht größere Schrift.
 */
 :root { --aim-zoom: 1; }
-@media (min-width: 1700px) and (min-height: 880px) { :root { --aim-zoom: 1.08; } }
-@media (min-width: 1900px) and (min-height: 980px) { :root { --aim-zoom: 1.15; } }
-@media (min-width: 2200px) and (min-height: 1150px) { :root { --aim-zoom: 1.25; } }
-@media (min-width: 2500px) and (min-height: 1300px) { :root { --aim-zoom: 1.35; } }
-@media (min-width: 3000px) and (min-height: 1600px) { :root { --aim-zoom: 1.6; } }
-@media (min-width: 3600px) and (min-height: 1900px) { :root { --aim-zoom: 1.9; } }
-@media screen { html { zoom: var(--aim-zoom); } }
-@media print { :root { --aim-zoom: 1; } }
 
 @utility h-schirm { height: calc(100dvh / var(--aim-zoom, 1)); }
 @utility min-h-schirm { min-height: calc(100dvh / var(--aim-zoom, 1)); }
