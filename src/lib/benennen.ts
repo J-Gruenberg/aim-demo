@@ -16,13 +16,18 @@ const sauber = (t: string | null | undefined, max: number) =>
  * oder AIM ihn selbst gesetzt hat (ergebnis.titel_auto). Kunde und Baustelle nur, wenn sie leer sind.
  * Was der Nutzer selbst eingetragen hat, bleibt immer stehen.
  */
-export async function automatischBenennen(sb: SupabaseClient, projektId: string, vorschlag: { titel?: string | null; kunde?: string | null; ort?: string | null }) {
+export async function automatischBenennen(
+  sb: SupabaseClient,
+  projektId: string,
+  vorschlag: { titel?: string | null; kunde?: string | null; ort?: string | null },
+  opt: { nurStandard?: boolean } = {},
+) {
   const { data: p } = await sb.from('projekte').select('titel,kunde,ort,ergebnis').eq('id', projektId).maybeSingle();
   if (!p) return null;
   const patch: { titel?: string; kunde?: string; ort?: string } = {};
   const titel = sauber(vorschlag.titel, 120);
   const auto = (p.ergebnis as { titel_auto?: string } | null)?.titel_auto;
-  if (titel.length >= 3 && titel !== p.titel && (STANDARD_TITEL.includes(p.titel) || p.titel === auto)) patch.titel = titel;
+  if (titel.length >= 3 && titel !== p.titel && (STANDARD_TITEL.includes(p.titel) || (!opt.nurStandard && p.titel === auto))) patch.titel = titel;
   const kunde = sauber(vorschlag.kunde, 120);
   if (kunde && !p.kunde) patch.kunde = kunde;
   const ort = sauber(vorschlag.ort, 120);

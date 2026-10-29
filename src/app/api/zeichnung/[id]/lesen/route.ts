@@ -147,12 +147,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Hinweise gehören zum Blatt: erneutes Lesen ersetzt sie, statt sie zu stapeln
     const { data: pr } = await sb.from('projekte').select('ergebnis').eq('id', id).single();
-    type BlattInfo = { datei?: string; seite?: number; zeichnungsnummer?: string; hinweise?: string[] };
-    const blaetter: Record<string, BlattInfo> = { ...((pr?.ergebnis?.blaetter as Record<string, BlattInfo>) ?? {}), [`${datei_id}:${seite}`]: { ...daten.blatt, datei: datei.name, seite, hinweise: daten.hinweise.slice(0, 10) } };
+    type BlattInfo = { datei?: string; seite?: number; zeichnungsnummer?: string; hinweise?: string[]; kaufteile?: { bezeichnung: string; norm: string; stk: number }[] };
+    const blaetter: Record<string, BlattInfo> = { ...((pr?.ergebnis?.blaetter as Record<string, BlattInfo>) ?? {}), [`${datei_id}:${seite}`]: { ...daten.blatt, datei: datei.name, seite, hinweise: daten.hinweise.slice(0, 10), kaufteile: daten.kaufteile ?? [] } };
     const hinweise = Array.from(new Set(Object.values(blaetter).flatMap((b) => (b.hinweise ?? []).map((h) => `${b.zeichnungsnummer || b.datei || ''}: ${h}`)))).slice(0, 60);
     await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'blaetter', p_wert: blaetter });
     await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'hinweise', p_wert: hinweise });
-    const benannt = await automatischBenennen(sb, id, { titel: daten.blatt.projektname || daten.blatt.projekt || daten.blatt.titel, kunde: daten.blatt.kunde });
+    // Nur das erste gelesene Blatt benennt das Projekt, den endgültigen Namen setzt der Zeichnungssatz
+    const benannt = await automatischBenennen(sb, id, { titel: daten.blatt.projektname || daten.blatt.projekt || daten.blatt.titel, kunde: daten.blatt.kunde }, { nurStandard: true });
     await sb.from('dateien').update({ seiten, gelesen_bis: seite, art: 'zeichnung' }).eq('id', datei_id);
     return NextResponse.json({ fertig: seite >= seiten, neu: neu.length, seiten, naechste: seite < seiten ? seite + 1 : null, kosten: kostenEur, blatt: daten.blatt, benannt, positionen: neu.map((z) => ({ oz: z.oz, kurztext: z.kurztext, menge: z.menge, einheit: z.einheit, ep: z.ep, gp: z.gp, sicherheit: z.sicherheit, begruendung: z.begruendung })), hinweise: daten.hinweise.slice(0, 10) });
   } catch (e) {

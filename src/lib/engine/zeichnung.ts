@@ -253,7 +253,15 @@ export function baugruppeRechnen(a: BaugruppeAnsatz, stamm: Stammdaten): Baugrup
   const fek = ag.reduce((s, x) => s + fekJe(x), 0);
 
   // 4. Fremdleistung Oberfläche
-  const flaeche = p0(m.flaeche_m2) || (kg / 1000) * sd(stamm, 'zg_flaeche_m2_t');
+  // Bleche haben je Tonne viel mehr Oberfläche als Profile: beidseitig, aus Gewicht und Dicke (7,85 kg je m² und mm)
+  const flaecheGeschaetzt = teile.reduce((summe, t) => {
+    const art = teilart(t);
+    if (art === 'kaufteil') return summe;
+    const g = teilGewicht(t).kg;
+    const d = art === 'blech' || art === 'blech_dick' || art === 'kleinteil' ? blechdicke(t.profil) : null;
+    return summe + (d && d > 0 && d <= 40 ? (2 * g) / (d * 7.85) : (g / 1000) * sd(stamm, 'zg_flaeche_m2_t'));
+  }, 0);
+  const flaeche = p0(m.flaeche_m2) || flaecheGeschaetzt;
   let fremd = 0;
   const fremdText: string[] = [];
   if (m.oberflaeche === 'verzinkt' || m.oberflaeche === 'verzinkt_beschichtet') {

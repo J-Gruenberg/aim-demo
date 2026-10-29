@@ -49,6 +49,7 @@ Reine Ansichtsblätter ohne Positionsliste und ohne Fertigungsangaben: keine Pos
 
 blatt: zeichnungsnummer, titel, projekt aus dem Schriftfeld; exc = Ausführungsklasse (z. B. "EXC2") oder ""; gesamtgewicht_kg = Blattsumme aller Positionen, falls angegeben, sonst null.
 kunde = Firma im Schriftfeld (Auftraggeber, sonst Ersteller der Zeichnung), sonst "". projektname = kurzer, sprechender Name für die Kalkulation aus Schriftfeld und Inhalt, höchstens sechs Wörter (z. B. "Bühne mit Geländer 220935" oder "Stützen Halle 3").
+kaufteile: alle Normteile und Zukaufteile aus Stückliste oder Positionsliste dieses Blatts (Schrauben, Muttern, Scheiben, Verschlüsse, Dichtungen, Gummiprofile, Scharniere), bezeichnung wie geschrieben, norm = Norm oder Herstellerbezeichnung, stk = Stückzahl je EINER Baugruppe. Nichts davon als eigene Position anlegen. Keine: leere Liste.
 hinweise: höchstens acht kurze, sachliche Punkte ohne Wiederholungen, was für die Kalkulation wichtig ist (Werkstoffgüte, Ausführungsklasse, Vorwärmen, Prüfungen, Toleranzen, nicht lesbare Stellen, Annahmen). Keine erfundenen Werte.`;
 
 const NULLBAR = (t: Record<string, unknown>) => ({ anyOf: [t, { type: 'null' }] });
@@ -56,7 +57,7 @@ const NULLBAR = (t: Record<string, unknown>) => ({ anyOf: [t, { type: 'null' }] 
 export const SCHEMA_ZEICHNUNG = {
   type: 'object',
   additionalProperties: false,
-  required: ['blatt', 'positionen', 'hinweise'],
+  required: ['blatt', 'positionen', 'hinweise', 'kaufteile'],
   properties: {
     blatt: {
       type: 'object',
@@ -116,6 +117,15 @@ export const SCHEMA_ZEICHNUNG = {
       },
     },
     hinweise: { type: 'array', items: { type: 'string' } },
+    kaufteile: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['bezeichnung', 'norm', 'stk'],
+        properties: { bezeichnung: { type: 'string' }, norm: { type: 'string' }, stk: { type: 'number' } },
+      },
+    },
   },
 } as const;
 
@@ -143,6 +153,7 @@ export type GelesenesBlatt = {
   blatt: { zeichnungsnummer: string; titel: string; projekt: string; exc: string; gesamtgewicht_kg: number | null; kunde?: string; projektname?: string };
   positionen: GeleseneBaugruppe[];
   hinweise: string[];
+  kaufteile?: { bezeichnung: string; norm: string; stk: number }[];
 };
 
 export function merkmaleAus(b: GeleseneBaugruppe): BaugruppeMerkmale {

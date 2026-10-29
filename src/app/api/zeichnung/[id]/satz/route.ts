@@ -37,7 +37,22 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!gelesen.length) return NextResponse.json({ geaendert: 0, neu: 0, hinweise: [] });
 
   // Eingabe für die KI: je Position Blatt, Zeichnung, Menge und Stückliste
-  const blaetter = (pr?.ergebnis?.blaetter ?? {}) as Record<string, { zeichnungsnummer?: string; titel?: string; projekt?: string; datei?: string; seite?: number }>;
+  const blaetter = (pr?.ergebnis?.blaetter ?? {}) as Record<
+    string,
+    { zeichnungsnummer?: string; titel?: string; projekt?: string; datei?: string; seite?: number; hinweise?: string[]; kaufteile?: { bezeichnung: string; norm: string; stk: number }[] }
+  >;
+  const blattText = Object.values(blaetter)
+    .sort((a, b) => (a.datei ?? '').localeCompare(b.datei ?? '') || (a.seite ?? 0) - (b.seite ?? 0))
+    .map((b) =>
+      [
+        `BLATT ${b.seite ?? '?'} der Datei ${b.datei ?? ''}: Zeichnung ${b.zeichnungsnummer ?? '?'}, ${b.titel ?? ''}`,
+        b.kaufteile?.length ? `  Kaufteile je Baugruppe: ${b.kaufteile.map((k) => `${k.stk} × ${k.bezeichnung}${k.norm ? ` (${k.norm})` : ''}`).join('; ')}` : '',
+        b.hinweise?.length ? `  Hinweise: ${b.hinweise.join(' | ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    )
+    .join('\n');
   const text = gelesen
     .map((p) => {
       const a = (p.ansatz ?? {}) as Partial<BaugruppeAnsatz> & { kg_je_einheit?: number; nur_gewicht?: boolean };
@@ -52,10 +67,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       ].join('\n');
     })
     .join('\n\n');
+  const eingabe = `${blattText ? `BLÄTTER DES SATZES\n${blattText}\n\n` : ''}GELESENE POSITIONEN\n${text}`;
 
   let daten: SatzKi;
   try {
-    ({ daten } = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text }], schema: SCHEMA_SATZ, maxTokens: 8000 }));
+    ({ daten } = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text: eingabe }], schema: SCHEMA_SATZ, maxTokens: 8000 }));
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Der Zeichnungssatz ließ sich nicht ordnen.';
     console.error('satz', e);
@@ -68,6 +84,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const p = gelesen.find((x) => x.id === k.id);
     if (!p) continue;
     const a = { ...(p.ansatz ?? {}) } as Record<string, unknown>;
+    // Doppelt gelesene Gewichtsposition: die genauere vom eigenen Blatt bleibt. Nur Schätzungen werden gelöscht.
+    if ((k.entfernen || k.menge === 0) && a.nur_gewicht && gelesen.length > 1) {
+      await sb.from('positionen').delete().eq('id', p.id);
+      geaendert++;
+      continue;
+    }
+    const fehlt = k.zeichnung_fehlt?.trim();
+    if (fehlt) a.zeichnung_fehlt = fehlt;
     const menge = k.menge > 0 ? k.menge : Number(p.menge ?? 1) || 1;
     let ep: number | null = null;
     let langtext: string | undefined;
@@ -93,7 +117,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       .from('positionen')
       .update({
         oz: k.oz || p.oz,
-        kurztext: (k.benennung || p.kurztext || '').slice(0, 200),
+        kurztext: `${k.benennung || p.kurztext || ''}${fehlt && !/zeichnung fehlt/i.test(k.benennung) ? ', Zeichnung fehlt' : ''}`.slice(0, 200),
+        ...(fehlt ? { sicherheit: Math.min(0.15, Number(p.sicherheit ?? 0.15)) } : {}),
         menge,
         ansatz: a,
         ...(ep !== null ? { ep, gp: r2(ep * menge) } : {}),
@@ -127,6 +152,25 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       status: 'pruefen',
       begruendung: `Zeichnung ${f.zeichnungsnummer} fehlt im Satz. ${kg > 0 ? `Nur über das Gewicht aus der Stückliste (${de(kg)} kg) mit Ihrer Gewichtsstaffel gerechnet. ` : ''}Bitte Zeichnung anfordern und neu kalkulieren.`,
       quelle: 'satz:fehlt',
+    });
+  }
+  if (daten.zusammenbau?.anlegen && daten.zusammenbau.stunden > 0) {
+    const ansatz = { art: 'stunden', stunden_je_einheit: r2(daten.zusammenbau.stunden), montage: false };
+    const ep = rechnePosition(ansatz as unknown as Ansatz, 1, stamm).ep;
+    zeilen.push({
+      oz: daten.zusammenbau.oz || '1',
+      kurztext: (daten.zusammenbau.benennung || 'Zusammenbau und Montage').slice(0, 200),
+      langtext: 'Zusammenbauen aus den Unterbaugruppen und Kaufteilen: Verschrauben, Dichtungen einlegen, Verschlüsse setzen, Endkontrolle.',
+      menge: 1,
+      einheit: 'Stck',
+      typ: 'stunden',
+      ansatz,
+      ep,
+      gp: ep,
+      sicherheit: 0.55,
+      status: 'pruefen',
+      begruendung: `${de(daten.zusammenbau.stunden, 2)} h geschätzt. ${daten.zusammenbau.grund}`.trim().slice(0, 2000),
+      quelle: 'satz:zusammenbau',
     });
   }
   if (daten.kaufteile.length) {
