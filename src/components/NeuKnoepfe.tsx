@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileScan, FileSpreadsheet, Plus, Ruler, Warehouse, type LucideIcon } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import { LEERE_HALLE } from '@/lib/engine/halle';
@@ -19,8 +19,11 @@ export const ARTEN: { typ: Typ; titel: string; text: string; icon: LucideIcon; t
 /** Legt eine neue Kalkulation an und öffnet sie. */
 export function useNeuAnlegen() {
   const router = useRouter();
+  const pfad = usePathname();
   const [laedt, setLaedt] = useState<Typ | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  // Nach dem Wechsel auf die neue Kalkulation wieder freigeben (die Kopfzeile bleibt dabei stehen)
+  useEffect(() => setLaedt(null), [pfad]);
   async function neu(typ: Typ) {
     setLaedt(typ);
     setFehler(null);
@@ -72,7 +75,10 @@ export function NeuMenue() {
               role="menuitem"
               type="button"
               disabled={!!laedt}
-              onClick={() => neu(a.typ)}
+              onClick={() => {
+                setOffen(false);
+                neu(a.typ);
+              }}
               className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]"
             >
               <span className={`grid size-9 shrink-0 place-items-center rounded-full ${a.ton}`}><a.icon className="size-[18px]" strokeWidth={1.75} aria-hidden /></span>
