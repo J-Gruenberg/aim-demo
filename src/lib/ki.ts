@@ -221,10 +221,17 @@ export async function kiStrukturiert<T>(opts: {
   };
 
   let letzterFehler = '';
+  // Ohne Zufall: gleiche Eingabe, möglichst gleiche Antwort. Lehnt ein Modell die Einstellung ab, ohne sie weiter.
+  let ohneZufall = true;
   for (const basis of modellKette(opts.stufe)) {
     const m = betrieb === 'eu' ? `eu.anthropic.${basis}` : basis;
     for (let versuch = 0; versuch < 2; versuch++) {
-      const r = await rufeAuf(betrieb, m, nutzlast);
+      const r = await rufeAuf(betrieb, m, ohneZufall ? { ...nutzlast, temperature: 0 } : nutzlast);
+      if (!r.ok && ohneZufall && /temperature/i.test(r.text)) {
+        ohneZufall = false;
+        versuch--;
+        continue;
+      }
       if (!r.ok) {
         letzterFehler = `${m}: ${r.name}: ${r.text}`;
         await opts.sb?.from('ki_aufrufe').insert({ projekt_id: opts.projektId, zweck: opts.zweck, modell: m, ok: false, fehler: letzterFehler.slice(0, 2000) });

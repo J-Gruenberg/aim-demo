@@ -1,4 +1,5 @@
 import 'server-only';
+import { version } from './gedaechtnis';
 
 /**
  * Zeichnungssatz verstehen: Nach dem Lesen aller Blätter wird der Satz als Ganzes geordnet.
@@ -73,3 +74,6 @@ export type SatzKi = {
   fremdleistungen: { bezeichnung: string; hinweis: string }[];
   hinweise: string[];
 };
+
+/** Ändert sich Prompt oder Schema, wird ein bekannter Satz einmal neu geordnet. */
+export const SATZ_VERSION = version(SYSTEM_SATZ, SCHEMA_SATZ);

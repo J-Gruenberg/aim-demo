@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, aktuellesProfil } from '@/lib/supabase/server';
 import { KiFehler } from '@/lib/ki';
-import { blattLesen, merkmaleAus, type GeleseneBaugruppe } from '@/lib/zeichnung-ki';
+import { blattLesen, merkmaleAus, ZEICHNUNG_VERSION, type GeleseneBaugruppe, type GelesenesBlatt } from '@/lib/zeichnung-ki';
+import { erinnern, merken, seitenAbdruck } from '@/lib/gedaechtnis';
+import { pdfSeiten } from '@/lib/pruefung-ki';
 import { baugruppeRechnen, stuecklistenText, teilart, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
 import { ladeStammdaten } from '@/lib/daten';
 import { rechnePosition, type Ansatz, type Oberflaeche } from '@/lib/engine/bauteile';
@@ -49,7 +51,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const buf = Buffer.from(await blob.arrayBuffer());
 
   try {
-    const { daten, kostenEur, seiten } = await blattLesen({ sb, projektId: id, buf, name: datei.name, seite, stufe: gruendlich ? 'premium' : 'standard' });
+    // Gleiche Zeichnung, gleiche Lesung: erst ins Gedächtnis schauen. „Gründlich“ liest bewusst neu und ersetzt die Lesung.
+    const istPdf = /\.pdf$/i.test(datei.name);
+    const texte = istPdf ? await pdfSeiten(buf) : [];
+    const schluessel = `zng:${ZEICHNUNG_VERSION}:${seitenAbdruck(buf, seite, texte[seite - 1])}`;
+    let daten: GelesenesBlatt;
+    let kostenEur = 0;
+    let seiten: number;
+    const bekannt = gruendlich ? null : await erinnern<GelesenesBlatt>(sb, schluessel);
+    if (bekannt) {
+      daten = bekannt.daten;
+      seiten = bekannt.seiten ?? (istPdf ? texte.length : 1);
+    } else {
+      const r = await blattLesen({ sb, projektId: id, buf, name: datei.name, seite, stufe: gruendlich ? 'premium' : 'standard' });
+      ({ daten, kostenEur, seiten } = r);
+      await merken(sb, schluessel, 'zeichnung', daten, { seiten, modell: r.modell });
+    }
     const { werte: stamm } = await ladeStammdaten(sb);
 
     // Erneutes Lesen desselben Blatts ersetzt die Positionen daraus
@@ -155,7 +172,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Nur das erste gelesene Blatt benennt das Projekt, den endgültigen Namen setzt der Zeichnungssatz
     const benannt = await automatischBenennen(sb, id, { titel: daten.blatt.projektname || daten.blatt.projekt || daten.blatt.titel, kunde: daten.blatt.kunde }, { nurStandard: true });
     await sb.from('dateien').update({ seiten, gelesen_bis: seite, art: 'zeichnung' }).eq('id', datei_id);
-    return NextResponse.json({ fertig: seite >= seiten, neu: neu.length, seiten, naechste: seite < seiten ? seite + 1 : null, kosten: kostenEur, blatt: daten.blatt, benannt, positionen: neu.map((z) => ({ oz: z.oz, kurztext: z.kurztext, menge: z.menge, einheit: z.einheit, ep: z.ep, gp: z.gp, sicherheit: z.sicherheit, begruendung: z.begruendung })), hinweise: daten.hinweise.slice(0, 10) });
+    return NextResponse.json({ fertig: seite >= seiten, neu: neu.length, seiten, naechste: seite < seiten ? seite + 1 : null, kosten: kostenEur, gedaechtnis: !!bekannt, blatt: daten.blatt, benannt, positionen: neu.map((z) => ({ oz: z.oz, kurztext: z.kurztext, menge: z.menge, einheit: z.einheit, ep: z.ep, gp: z.gp, sicherheit: z.sicherheit, begruendung: z.begruendung })), hinweise: daten.hinweise.slice(0, 10) });
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Beim Lesen ist ein Fehler aufgetreten.';
     console.error('zeichnung lesen', e);

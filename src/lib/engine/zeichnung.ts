@@ -78,7 +78,7 @@ export type Kostenstelle = (typeof KOSTENSTELLEN)[number]['key'];
 
 // Normteile und Zukaufteile: gehen nicht ins Stahlgewicht, sondern als eigene Position „Preis anfragen“
 const KAUFTEIL =
-  /\b(\w*schraube|mutter|scheibe|hv[- ]?garnitur|garnitur|kopfbolzen|anker|d[üu]bel|niet\w*|bolzen|gewindestange|din\s?\d{3,4}|iso\s?\d{3,4}|\w*verschluss|southco|happich|dicht\w*|\w*gummi\w*|scharnier|griff|stopfen|kappe|kabel\w*|verschraubung|clip|typenschild|aufkleber|kompressionsverschl\w*)\b/i;
+  /\b(\w*schraube|mutter|scheibe|hv[- ]?garnitur|garnitur|kopfbolzen|anker|d[üu]bel|niet\w*|gewindestange|din\s?\d{3,4}|iso\s?\d{3,4}|\w*verschluss|southco|happich|dicht\w*|\w*gummi\w*|scharnier|stopfen|kappe|kabel\w*|verschraubung|clip|typenschild|aufkleber|kompressionsverschl\w*)\b/i;
 const BLECH = /^(bl|blech|pl|platte|riffel|tr[äa]nen|-)\b|^(bl|pl)\s?\d|\b(blech|platte|stirnplatte|kopfplatte|fu(ß|ss)platte|rippe|steife|knotenblech|lasche|futter)\b/i;
 const WALZ = /\b(he[abm]|hd|hl|ipe|ipn|upe|upn|u|l|t|rohr|ro|rro|qro|qr|rhs|shs|chs|vkt)\s?\d/i;
 const FLACH = /\b(fl|flach|flachstahl|rd|rund|rundstahl)\s?\d/i;
@@ -98,7 +98,10 @@ function profilHoehe(profil: string): number | null {
 
 export function teilart(t: Pick<Teil, 'bezeichnung' | 'profil' | 'gewicht_kg' | 'stk'>): Teilart {
   const text = `${t.profil} ${t.bezeichnung}`;
-  if (KAUFTEIL.test(text) && !BLECH.test(t.profil)) return 'kaufteil';
+  // Was ein Stahlprofil mit Maß hat (RD55, BL4, FL30*5, HEB200), wird gefertigt und ist nie ein Kaufteil,
+  // auch wenn es Griff, Bolzen oder Anker heißt
+  const stahlMitMass = BLECH.test(t.profil) || WALZ.test(t.profil) || FLACH.test(t.profil);
+  if (KAUFTEIL.test(text) && !stahlMitMass) return 'kaufteil';
   const einzel = t.gewicht_kg && t.stk > 0 ? t.gewicht_kg / t.stk : null;
   const istProfil = WALZ.test(t.profil) && !/^(bl|pl)/i.test(t.profil.trim());
   if (istProfil) {

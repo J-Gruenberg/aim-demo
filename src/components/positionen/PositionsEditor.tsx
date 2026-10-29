@@ -269,12 +269,12 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   }
 
   /** Vorbemerkungen prüfen: Hinweise mit Ampel, Bieterfragen, Projektname. */
-  async function pruefen(still = false): Promise<Pruefung | null> {
+  async function pruefen(still = false, frisch = false): Promise<Pruefung | null> {
     setPruefLaeuft(true);
     const seit = Date.now();
     let ergebnis: Pruefung | null = null;
     try {
-      const r = await fetch(`/api/lv/${projekt.id}/pruefen`, { method: 'POST' }).catch(() => null);
+      const r = await fetch(`/api/lv/${projekt.id}/pruefen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ frisch }) }).catch(() => null);
       const j = r ? await r.json().catch(() => ({})) : {};
       if (r?.ok && j.pruefung) {
         ergebnis = j.pruefung;
@@ -296,12 +296,12 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   }
 
   /** Pläne gegen LV, Merkmal für Merkmal, mit Bieterfragen. */
-  async function planAbgleich(still = false): Promise<Abgleich | null> {
+  async function planAbgleich(still = false, frisch = false): Promise<Abgleich | null> {
     setAbgleichLaeuft(true);
     const seit = Date.now();
     let ergebnis: Abgleich | null = null;
     try {
-      const r = await fetch(`/api/lv/${projekt.id}/abgleich`, { method: 'POST' }).catch(() => null);
+      const r = await fetch(`/api/lv/${projekt.id}/abgleich`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ frisch }) }).catch(() => null);
       const j = r ? await r.json().catch(() => ({})) : {};
       if (r?.ok && j.abgleich) ergebnis = j.abgleich;
       else if (r && j.fehler) {
@@ -495,9 +495,13 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   }
 
   /** Liest eine Werkstattzeichnung Blatt für Blatt. Jedes Blatt ist ein eigener Aufruf, damit nichts in eine Zeitgrenze läuft. */
-  async function zeichnungLesen(d: Datei, still = false): Promise<number> {
+  /**
+   * Liest eine Zeichnung Blatt für Blatt. Bekannte Zeichnungen kommen aus dem Gedächtnis (gleiche Zeichnung, gleicher Preis).
+   * frisch = bewusst gründlich neu lesen; diese Lesung ersetzt dann die gemerkte.
+   */
+  async function zeichnungLesen(d: Datei, still = false, frisch = false): Promise<number> {
     const schon = pos.filter((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`)).length;
-    if (schon && !still && !confirm(`Aus dieser Zeichnung sind schon ${schon} Positionen gelesen. Neu lesen ersetzt sie samt Änderungen. Weiter?`)) return 0;
+    if (schon && !still && !confirm(`Aus dieser Zeichnung sind schon ${schon} Positionen gelesen. Gründlich neu lesen ersetzt sie samt Änderungen, und AIM merkt sich die neue Lesung für die Zukunft. Weiter?`)) return 0;
     let seite: number | null = 1;
     let neuGesamt = 0;
     let blaetter = d.seiten ?? null;
@@ -518,9 +522,10 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         benannt?: Record<string, string> | null;
         positionen?: { oz: string; kurztext: string; menge: number; einheit: string; ep: number; gp: number; sicherheit: number; begruendung: string }[];
         hinweise?: string[];
+        gedaechtnis?: boolean;
       } = { neu: 0, naechste: null };
       try {
-        r = await fetch(`/api/zeichnung/${projekt.id}/lesen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id, seite }) });
+        r = await fetch(`/api/zeichnung/${projekt.id}/lesen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id, seite, gruendlich: frisch }) });
         j = await r.json().catch(() => ({ neu: 0, naechste: null }));
       } catch {
         r = null;
@@ -553,6 +558,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         setDateien((l) => l.map((x) => (x.id === d.id ? { ...x, seiten: j.seiten ?? x.seiten } : x)));
       }
       const b = j.blatt;
+      if (j.gedaechtnis) liveLog({ art: 'info', titel: 'Diese Zeichnung kennt AIM schon', text: 'Gleiche Lesung wie beim letzten Mal, damit auch der gleiche Preis.' });
       liveLog({
         art: 'schritt',
         titel: `Blatt ${blatt}${blaetter ? ` von ${blaetter}` : ''} gelesen${b?.zeichnungsnummer ? `: Zeichnung ${b.zeichnungsnummer}` : ''}${b?.titel ? `, ${b.titel}` : ''}`,
@@ -984,7 +990,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       )}
                       <span className="ml-auto" />
                       {darfSchreiben && d.art === 'zeichnung' && !liest && (
-                        <button className={n ? 'knopf-leise knopf-klein' : 'knopf-blau knopf-klein'} disabled={!!laeuft} onClick={() => zeichnungLesen(d)}>{n ? 'Neu lesen' : 'Lesen'}</button>
+                        <button className={n ? 'knopf-leise knopf-klein' : 'knopf-blau knopf-klein'} disabled={!!laeuft} onClick={() => zeichnungLesen(d, false, n > 0)} title={n ? 'Mit dem stärksten Modell frisch lesen, AIM merkt sich danach diese Lesung' : undefined}>{n ? 'Gründlich neu lesen' : 'Lesen'}</button>
                       )}
                       {darfSchreiben && !liest && (
                         <button className="grid size-8 place-items-center rounded-full text-ink-500 hover:bg-[var(--bg-hover)] hover:text-signal" disabled={!!laeuft} onClick={() => dateiLoeschen(d)} aria-label={`${d.name} entfernen`} title="Entfernen">
@@ -1149,11 +1155,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           gesperrt={!!laeuft && !pruefLaeuft && !abgleichLaeuft}
           onPruefen={() => {
             liveBeginnen('Vorbemerkungen werden geprüft', 'pruefen');
-            void pruefen().then(() => liveEnde('Prüfung fertig'));
+            void pruefen(false, !!pruefung).then(() => liveEnde('Prüfung fertig'));
           }}
           onAbgleich={() => {
             liveBeginnen('Pläne werden gegen das LV geprüft', 'pruefen');
-            void planAbgleich().then(() => liveEnde('Plan gegen LV fertig'));
+            void planAbgleich(false, !!abgleich).then(() => liveEnde('Plan gegen LV fertig'));
           }}
           onPosition={(id) => setOffenId(id)}
         />

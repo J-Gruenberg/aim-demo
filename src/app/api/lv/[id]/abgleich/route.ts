@@ -3,6 +3,9 @@ import { supabaseServer, aktuellesProfil } from '@/lib/supabase/server';
 import { kiStrukturiert, KiFehler } from '@/lib/ki';
 import { SCHEMA_ABGLEICH, SYSTEM_ABGLEICH, planBeschriftungen, type AbgleichKi } from '@/lib/pruefung-ki';
 import type { Abgleich, Widerspruch } from '@/components/positionen/typen';
+import { erinnern, hash, merken, version } from '@/lib/gedaechtnis';
+
+const ABGLEICH_VERSION = version(SYSTEM_ABGLEICH, SCHEMA_ABGLEICH);
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -14,10 +17,11 @@ const MERKMALE: Widerspruch['merkmal'][] = ['werkstoff', 'oberflaeche', 'profil'
  * Mengen und Bieterfragen. Die Pläne gehen als PDF an die KI, ihre Beschriftungen zusätzlich als Text mit Fundstellen,
  * damit Wörter wie „Edelstahl“ nicht in der Grafik untergehen.
  */
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profil = await aktuellesProfil();
   if (!profil || profil.rolle === 'leser') return NextResponse.json({ fehler: 'Keine Berechtigung.' }, { status: 403 });
+  const { frisch = false } = (await req.json().catch(() => ({}))) as { frisch?: boolean };
   const sb = await supabaseServer();
   const [{ data: plaene }, { data: pos }] = await Promise.all([
     sb.from('dateien').select('pfad,name,groesse').eq('projekt_id', id).eq('art', 'plan').order('created_at').limit(4),
@@ -54,7 +58,19 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   });
 
   try {
-    const { daten, kostenEur } = await kiStrukturiert<AbgleichKi>({ sb, projektId: id, zweck: `Abgleich Plan gegen LV (${namen.length} Pläne)`, stufe: 'standard', system: SYSTEM_ABGLEICH, inhalt, schema: SCHEMA_ABGLEICH, maxTokens: 32000 });
+    // Gleiche Pläne und gleiches LV, gleiches Ergebnis. „Neu prüfen“ fragt bewusst frisch.
+    const fingerabdruck = hash([...geladen.map((g) => hash(g.buf)), JSON.stringify(inhalt[inhalt.length - 1])].join('|'));
+    const schluessel = `abgleich:${ABGLEICH_VERSION}:${fingerabdruck}`;
+    const bekannt = frisch ? null : await erinnern<AbgleichKi>(sb, schluessel);
+    let daten: AbgleichKi;
+    let kostenEur = 0;
+    if (bekannt) daten = bekannt.daten;
+    else {
+      const r = await kiStrukturiert<AbgleichKi>({ sb, projektId: id, zweck: `Abgleich Plan gegen LV (${namen.length} Pläne)`, stufe: 'standard', system: SYSTEM_ABGLEICH, inhalt, schema: SCHEMA_ABGLEICH, maxTokens: 32000 });
+      daten = r.daten;
+      kostenEur = r.kostenEur;
+      await merken(sb, schluessel, 'abgleich', daten, { modell: r.modell });
+    }
     const abgleich: Abgleich = {
       datum: new Date().toISOString(),
       plaene: namen,

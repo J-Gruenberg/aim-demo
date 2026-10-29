@@ -8,12 +8,16 @@ import { rechnePosition } from '@/lib/engine/bauteile';
 import { STAMMDATEN_DEFS } from '@/lib/engine/stammdaten';
 import { aehnlicheFuer, archivKontext, gleichSchluessel, type ArchivTreffer } from '@/lib/archiv';
 import { bezuege } from '@/lib/lv-text';
+import { hash, merken, version } from '@/lib/gedaechtnis';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 /** Unter dieser Sicherheit rechnet das größere Modell die Position automatisch nach. */
 const NACHRECHNEN_UNTER = 0.85;
+
+/** Gedächtnis: gleiche Position (Text, Menge, Einheit, Bezug), gleicher Ansatz, gleicher Preis. Neue Prompt-Version liest neu. */
+const KALK_VERSION = version(systemKalkulieren(''), SCHEMA_KALKULIEREN);
 
 type Pos = { id: string; oz: string | null; kurztext: string | null; langtext: string | null; menge: number | null; einheit: string | null; ansatz: Record<string, unknown> | null; status: string; typ: string | null; sicherheit: number | null; begruendung: string | null; ep: number | null; sort?: number | null };
 
@@ -73,7 +77,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     gruppen.set(s, [...(gruppen.get(s) ?? []), p]);
   }
-  const vertreter = [...gruppen.values()].map((g) => g[0]);
+  // 1b. Gedächtnis: Diese Position hat AIM schon einmal kalkuliert (auch in einem anderen Projekt)
+  const norm = (t: string | null | undefined) => (t ?? '').replace(/\s+/g, ' ').trim();
+  const schluesselVon = (p: Pos) => {
+    const b = bezugVon.get(p.id);
+    return `pos:${KALK_VERSION}:${mit_plaenen ? 'plan' : 'text'}:${hash([norm(p.kurztext), norm(p.langtext), p.menge ?? '', norm(p.einheit), b ? `${norm(b.kurztext)} ${norm(b.langtext)}` : ''].join('|'))}`;
+  };
+  const kandidaten = [...gruppen.values()].map((g) => g[0]);
+  const bekannt = new Map<string, KiAnsatz>();
+  if (!gruendlich && kandidaten.length) {
+    const { data: g } = await sb.from('ki_gedaechtnis').select('schluessel,daten').in('schluessel', kandidaten.map(schluesselVon));
+    for (const z of g ?? []) bekannt.set(z.schluessel, z.daten as KiAnsatz);
+  }
+  for (const p of kandidaten) {
+    const k = bekannt.get(schluesselVon(p));
+    if (!k) continue;
+    await speichern(p, { ...k, id: p.id }, { gedaechtnis: true });
+    gesetzt++;
+    for (const g of gruppen.get(gleichSchluessel(p))!.slice(1)) {
+      await speichern(g, { ...k, id: g.id }, { gleich_wie: p.oz, gedaechtnis: true });
+      gesetzt++;
+    }
+  }
+  const vertreter = kandidaten.filter((p) => !bekannt.has(schluesselVon(p)));
   if (!vertreter.length) return NextResponse.json({ gesetzt, kosten: 0, uebernommen: gesetzt });
 
   // 2. Wissen aus dem Archiv: ähnliche Positionen aus seinen Angeboten
@@ -150,6 +176,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!k) continue;
       const treffer = (archiv[p.id] ?? []).map((t) => ({ projekt: t.projekt, datum: t.datum, text: t.text.slice(0, 200), ep: t.ep, einheit: t.einheit, kg_je_einheit: t.kg_je_einheit, aehnlichkeit: Math.round(t.aehnlichkeit * 100) / 100 }));
       await speichern(p, k, { archiv: treffer });
+      await merken(sb, schluesselVon(p), 'position', { ...k, id: undefined });
       gesetzt++;
       // gleiche Positionen derselben Gruppe bekommen denselben Ansatz
       for (const g of gruppen.get(gleichSchluessel(p))!.slice(1)) {

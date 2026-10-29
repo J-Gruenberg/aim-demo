@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { kiStrukturiert } from './ki';
+import { version } from './gedaechtnis';
 import type { BaugruppeMerkmale, Teil, ZeichnungOberflaeche } from './engine/zeichnung';
 
 /**
@@ -20,7 +21,8 @@ Aufgabe: Gib jede Position (Baugruppe oder Einzelteil mit eigener Positionsnumme
 - gewicht_zeichnung_kg: Gewicht EINER Baugruppe laut Zeichnung (Schriftfeld, Summenzeile der Stückliste). Nicht angegeben: null.
 - abmessung: Hüllmaße, wenn angegeben (z. B. "425 x 465 x 5085"), sonst "".
 - teile: jede Zeile der Stückliste dieser Position, auch das Hauptteil. stk = Stückzahl je EINER Baugruppe. Wenn die Stückliste Mengen für alle Baugruppen zusammen nennt, durch die Anzahl teilen.
-  profil genau wie geschrieben (z. B. "HEB240", "BL20*200*300", "L80*8", "ROHR219.1*10", "FL60*10").
+  profil genau wie geschrieben (z. B. "HEB240", "BL20*200*300", "L80*8", "ROHR219.1*10", "FL60*10"), immer mit Kurzzeichen und Maß. Steht in der Stückliste nur eine Norm oder ein Wort (z. B. "EN 10051", "Blech", "Rundstab"), bilde das Kurzzeichen aus Bemaßung und Benennung: Blech mit Dicke "BL4", Rundstahl mit Durchmesser "RD6", Flachstahl "FL30*5".
+  Bohrungen, Nähte und Kantungen: zähle, was die Zeichnung zeigt (Lochbilder, Maßketten, Schweißsymbole, Biegelinien). Schätze nicht großzügig: Was nicht erkennbar ist, setze 0, AIM rechnet dann mit festen Standardwerten.
   laenge_mm: Länge laut Stückliste. gewicht_kg: Gewicht der GANZEN Zeile für eine Baugruppe (Stückzahl mal Einzelgewicht). Steht nur das Einzelgewicht da, multipliziere. Steht kein Gewicht da: null.
   Schrauben, Muttern, Garnituren und Dübel als eigene Zeilen mit ihrem Text, Gewicht null, wenn nicht angegeben.
 - schweissbaugruppe: true, wenn Teile miteinander verschweißt werden (Schweißsymbole, "geschweißt", ZSB). Ein loses Einzelteil oder ein Träger nur mit Bohrungen: false.
@@ -262,6 +264,9 @@ async function normPng(buf: Buffer) {
   c.getContext('2d').drawImage(b, 0, 0);
   return c.encode('png');
 }
+
+/** Ändert sich Prompt oder Schema, liest AIM bekannte Zeichnungen einmal neu, sonst bleibt die Lesung gleich. */
+export const ZEICHNUNG_VERSION = version(SYSTEM_ZEICHNUNG, SCHEMA_ZEICHNUNG);
 
 export async function blattLesen(opts: { sb: SupabaseClient | null; projektId: string | null; buf: Buffer; name: string; seite: number; stufe?: 'schnell' | 'standard' | 'premium' }) {
   const v = await seiteVorbereiten(opts.buf, opts.name, opts.seite);

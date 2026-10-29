@@ -5,6 +5,9 @@ import { gaebText, gaebVorbemerkungen } from '@/lib/gaeb';
 import { automatischBenennen } from '@/lib/benennen';
 import { SCHEMA_PRUEFUNG, SYSTEM_PRUEFUNG, pdfSeiten, type PruefungKi } from '@/lib/pruefung-ki';
 import type { Pruefung } from '@/components/positionen/typen';
+import { erinnern, hash, merken, version } from '@/lib/gedaechtnis';
+
+const PRUEF_VERSION = version(SYSTEM_PRUEFUNG, SCHEMA_PRUEFUNG);
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -16,10 +19,11 @@ const STUFE = { kritisch: 0, beachten: 1, info: 2 } as const;
  * Prüft Vorbemerkungen, Baubeschreibung und Positionstexte: Hinweise mit Ampel, Bieterfragen, Projektname.
  * Ergebnis liegt in projekte.ergebnis.pruefung.
  */
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profil = await aktuellesProfil();
   if (!profil || profil.rolle === 'leser') return NextResponse.json({ fehler: 'Keine Berechtigung.' }, { status: 403 });
+  const { frisch = false } = (await req.json().catch(() => ({}))) as { frisch?: boolean };
   const sb = await supabaseServer();
   const [{ data: pr }, { data: pos }, { data: dateien }] = await Promise.all([
     sb.from('projekte').select('ergebnis').eq('id', id).single(),
@@ -77,7 +81,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   ];
 
   try {
-    const { daten } = await kiStrukturiert<PruefungKi>({ sb, projektId: id, zweck: 'Vorbemerkungen prüfen, Bieterfragen', stufe: 'standard', system: SYSTEM_PRUEFUNG, inhalt, schema: SCHEMA_PRUEFUNG, maxTokens: 32000 });
+    // Gleiche Unterlagen, gleicher Bericht. „Neu prüfen“ fragt bewusst frisch und ersetzt den gemerkten Bericht.
+    const schluessel = `pruefung:${PRUEF_VERSION}:${hash(JSON.stringify(inhalt))}`;
+    const bekannt = frisch ? null : await erinnern<PruefungKi>(sb, schluessel);
+    let daten: PruefungKi;
+    if (bekannt) daten = bekannt.daten;
+    else {
+      const r = await kiStrukturiert<PruefungKi>({ sb, projektId: id, zweck: 'Vorbemerkungen prüfen, Bieterfragen', stufe: 'standard', system: SYSTEM_PRUEFUNG, inhalt, schema: SCHEMA_PRUEFUNG, maxTokens: 32000 });
+      daten = r.daten;
+      await merken(sb, schluessel, 'pruefung', daten, { modell: r.modell });
+    }
     const pruefung: Pruefung = {
       datum: new Date().toISOString(),
       zusammenfassung: daten.zusammenfassung,

@@ -3,7 +3,8 @@ import { supabaseServer, aktuellesProfil } from '@/lib/supabase/server';
 import { kiStrukturiert, KiFehler } from '@/lib/ki';
 import { ladeStammdaten } from '@/lib/daten';
 import { automatischBenennen } from '@/lib/benennen';
-import { SCHEMA_SATZ, SYSTEM_SATZ, type SatzKi } from '@/lib/satz-ki';
+import { SATZ_VERSION, SCHEMA_SATZ, SYSTEM_SATZ, type SatzKi } from '@/lib/satz-ki';
+import { erinnern, hash, merken } from '@/lib/gedaechtnis';
 import { baugruppeRechnen, stuecklistenText, type BaugruppeAnsatz, type ZeichnungOberflaeche } from '@/lib/engine/zeichnung';
 import { rechnePosition, type Ansatz, type Oberflaeche } from '@/lib/engine/bauteile';
 import { summen, type Position } from '@/components/positionen/typen';
@@ -36,16 +37,36 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const gelesen = alle.filter((p) => (p.quelle ?? '').startsWith('zng:'));
   if (!gelesen.length) return NextResponse.json({ geaendert: 0, neu: 0, hinweise: [] });
 
+  // Der Satz rechnet immer von der ursprünglichen Lesung aus, nicht vom Ergebnis eines früheren Satz-Laufs.
+  // So liefert ein zweiter Lauf exakt dasselbe Ergebnis.
+  type Lesung = { oz: string | null; kurztext: string | null; menge: number | null; begruendung: string | null; sicherheit: number | null; ansatz: Record<string, unknown> };
+  const lesungVon = (p: Zeile): Lesung => {
+    const gespeichert = (p.ansatz as { lesung?: Lesung } | null)?.lesung;
+    if (gespeichert) return gespeichert;
+    const { lesung: _alt, ...ansatz } = (p.ansatz ?? {}) as Record<string, unknown>;
+    void _alt;
+    return { oz: p.oz, kurztext: p.kurztext, menge: p.menge, begruendung: p.begruendung, sicherheit: p.sicherheit, ansatz };
+  };
+  const lesungen = gelesen.map(lesungVon);
+  // Dateien nur durchnummerieren: gleiche Zeichnung unter anderem Dateinamen ist dieselbe Eingabe
+  const dateiNr = new Map<string, number>();
+  for (const p of gelesen) {
+    const d = (p.quelle ?? '').split(':')[1] ?? '';
+    if (!dateiNr.has(d)) dateiNr.set(d, dateiNr.size + 1);
+  }
+
   // Eingabe für die KI: je Position Blatt, Zeichnung, Menge und Stückliste
   const blaetter = (pr?.ergebnis?.blaetter ?? {}) as Record<
     string,
     { zeichnungsnummer?: string; titel?: string; projekt?: string; datei?: string; seite?: number; hinweise?: string[]; kaufteile?: { bezeichnung: string; norm: string; stk: number }[] }
   >;
-  const blattText = Object.values(blaetter)
-    .sort((a, b) => (a.datei ?? '').localeCompare(b.datei ?? '') || (a.seite ?? 0) - (b.seite ?? 0))
-    .map((b) =>
+  const blattText = Object.entries(blaetter)
+    .map(([schluessel, b]) => ({ b, nr: dateiNr.get(schluessel.split(':')[0]) ?? 0 }))
+    .filter((x) => x.nr > 0)
+    .sort((x, y) => x.nr - y.nr || (x.b.seite ?? 0) - (y.b.seite ?? 0))
+    .map(({ b, nr }) =>
       [
-        `BLATT ${b.seite ?? '?'} der Datei ${b.datei ?? ''}: Zeichnung ${b.zeichnungsnummer ?? '?'}, ${b.titel ?? ''}`,
+        `BLATT ${b.seite ?? '?'} der Datei ${nr}: Zeichnung ${b.zeichnungsnummer ?? '?'}, ${b.titel ?? ''}`,
         b.kaufteile?.length ? `  Kaufteile je Baugruppe: ${b.kaufteile.map((k) => `${k.stk} × ${k.bezeichnung}${k.norm ? ` (${k.norm})` : ''}`).join('; ')}` : '',
         b.hinweise?.length ? `  Hinweise: ${b.hinweise.join(' | ')}` : '',
       ]
@@ -54,24 +75,33 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     )
     .join('\n');
   const text = gelesen
-    .map((p) => {
-      const a = (p.ansatz ?? {}) as Partial<BaugruppeAnsatz> & { kg_je_einheit?: number; nur_gewicht?: boolean };
+    .map((p, i) => {
+      const l = lesungen[i];
+      const a = l.ansatz as Partial<BaugruppeAnsatz> & { kg_je_einheit?: number; nur_gewicht?: boolean };
       const [, datei, seite] = (p.quelle ?? '').split(':');
       const b = blaetter[`${datei}:${seite}`];
       const teile = (a.teile ?? []).map((t) => `    pos ${t.pos} | ${t.stk} Stk | ${t.bezeichnung} | ${t.profil} | ${t.werkstoff} | ${t.gewicht_kg ?? '?'} kg`).join('\n');
       return [
-        `POSITION id=${p.id}`,
-        `  Blatt ${seite ?? '?'} der Datei ${b?.datei ?? ''}, Zeichnung ${a.zeichnung ?? b?.zeichnungsnummer ?? '?'}, Titel ${b?.titel ?? ''}`,
-        `  oz ${p.oz ?? ''} | ${p.kurztext ?? ''} | Menge ${p.menge ?? 1} ${p.einheit ?? ''} | Gewicht laut Zeichnung ${a.gewicht_zeichnung_kg ?? a.kg_je_einheit ?? '?'} kg | Oberfläche ${a.merkmale?.oberflaeche ?? (a as { oberflaeche?: string }).oberflaeche ?? '?'} | ${a.merkmale?.schweissbaugruppe ? 'Schweißbaugruppe' : a.art === 'baugruppe' ? 'nicht geschweißt (verschraubt oder Einzelteil)' : 'Gewichtsposition'}${a.nur_gewicht ? ' | nur über Gewicht geschätzt' : ''}`,
+        `POSITION id=P${i + 1}`,
+        `  Blatt ${seite ?? '?'} der Datei ${dateiNr.get(datei) ?? '?'}, Zeichnung ${a.zeichnung ?? b?.zeichnungsnummer ?? '?'}, Titel ${b?.titel ?? ''}`,
+        `  oz ${l.oz ?? ''} | ${l.kurztext ?? ''} | Menge ${l.menge ?? 1} ${p.einheit ?? ''} | Gewicht laut Zeichnung ${a.gewicht_zeichnung_kg ?? a.kg_je_einheit ?? '?'} kg | Oberfläche ${a.merkmale?.oberflaeche ?? (a as { oberflaeche?: string }).oberflaeche ?? '?'} | ${a.merkmale?.schweissbaugruppe ? 'Schweißbaugruppe' : a.art === 'baugruppe' ? 'nicht geschweißt (verschraubt oder Einzelteil)' : 'Gewichtsposition'}${a.nur_gewicht ? ' | nur über Gewicht geschätzt' : ''}`,
         teile ? `  Stückliste:\n${teile}` : '  keine Stückliste',
       ].join('\n');
     })
     .join('\n\n');
   const eingabe = `${blattText ? `BLÄTTER DES SATZES\n${blattText}\n\n` : ''}GELESENE POSITIONEN\n${text}`;
 
+  // Gleicher Satz, gleiche Ordnung: aus dem Gedächtnis, sonst einmal fragen und merken
+  const schluessel = `satz:${SATZ_VERSION}:${hash(eingabe)}`;
   let daten: SatzKi;
   try {
-    ({ daten } = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text: eingabe }], schema: SCHEMA_SATZ, maxTokens: 16000 }));
+    const bekannt = await erinnern<SatzKi>(sb, schluessel);
+    if (bekannt) daten = bekannt.daten;
+    else {
+      const r = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text: eingabe }], schema: SCHEMA_SATZ, maxTokens: 16000 });
+      daten = r.daten;
+      await merken(sb, schluessel, 'satz', daten, { modell: r.modell });
+    }
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Der Zeichnungssatz ließ sich nicht ordnen.';
     console.error('satz', e);
@@ -81,12 +111,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   // 1. Gelesene Positionen anpassen
   // Gibt es im Satz echte Einzelzeichnungen, ist jede verbliebene reine Gewichtsschätzung eine fehlende Zeichnung.
   // Bei einer reinen Übersichtszeichnung bleibt es bei „über Gewicht geschätzt“.
-  const detailliert = gelesen.some((p) => (p.ansatz as { art?: string; nur_gewicht?: boolean } | null)?.art === 'baugruppe' && !(p.ansatz as { nur_gewicht?: boolean }).nur_gewicht);
+  const detailliert = lesungen.some((l) => l.ansatz.art === 'baugruppe' && !l.ansatz.nur_gewicht);
   let geaendert = 0;
   for (const k of daten.positionen) {
-    const p = gelesen.find((x) => x.id === k.id);
+    const nr = Number(String(k.id).replace(/\D/g, '')) - 1;
+    const p = gelesen[nr];
     if (!p) continue;
-    const a = { ...(p.ansatz ?? {}) } as Record<string, unknown>;
+    const l = lesungen[nr];
+    const a = { ...l.ansatz, lesung: l } as Record<string, unknown>;
     // Doppelt gelesene Gewichtsposition: die genauere vom eigenen Blatt bleibt. Nur Schätzungen werden gelöscht.
     if ((k.entfernen || k.menge === 0) && a.nur_gewicht && gelesen.length > 1) {
       await sb.from('positionen').delete().eq('id', p.id);
@@ -97,7 +129,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     // Nur echte Zeichnungsnummern anzeigen, Erklärsätze der KI werden zu „ohne Nummer“
     const fehlt = roh && !/^[A-Z0-9][A-Z0-9.\-/ ]{3,24}$/i.test(roh) ? 'ohne Nummer' : roh && !/\d{3}/.test(roh) ? 'ohne Nummer' : roh;
     if (fehlt) a.zeichnung_fehlt = fehlt;
-    const menge = k.menge > 0 ? k.menge : Number(p.menge ?? 1) || 1;
+    const menge = k.menge > 0 ? k.menge : Number(l.menge ?? 1) || 1;
     let ep: number | null = null;
     let langtext: string | undefined;
     if (a.art === 'baugruppe') {
@@ -121,14 +153,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await sb
       .from('positionen')
       .update({
-        oz: k.oz || p.oz,
-        kurztext: `${k.benennung || p.kurztext || ''}${fehlt && !/zeichnung fehlt/i.test(k.benennung) ? ', Zeichnung fehlt' : ''}`.slice(0, 200),
-        ...(fehlt ? { sicherheit: Math.min(0.15, Number(p.sicherheit ?? 0.15)) } : {}),
+        oz: k.oz || l.oz,
+        kurztext: `${k.benennung || l.kurztext || ''}${fehlt && !/zeichnung fehlt/i.test(k.benennung) ? ', Zeichnung fehlt' : ''}`.slice(0, 200),
+        sicherheit: fehlt ? Math.min(0.15, Number(l.sicherheit ?? 0.15)) : l.sicherheit,
         menge,
         ansatz: a,
         ...(ep !== null ? { ep, gp: r2(ep * menge) } : {}),
         ...(langtext ? { langtext } : {}),
-        ...(grund ? { begruendung: `${p.begruendung ?? ''}${p.begruendung ? ' ' : ''}Satz: ${grund}`.slice(0, 2000), status: p.status === 'freigegeben' ? 'pruefen' : p.status } : {}),
+        begruendung: `${l.begruendung ?? ''}${grund ? `${l.begruendung ? ' ' : ''}Satz: ${grund}` : ''}`.slice(0, 2000),
+        ...(grund && p.status === 'freigegeben' ? { status: 'pruefen' } : {}),
       })
       .eq('id', p.id);
     geaendert++;
