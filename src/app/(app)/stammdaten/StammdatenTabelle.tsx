@@ -46,7 +46,7 @@ export function StammdatenTabelle({ zeilen: start, darfSchreiben }: { zeilen: St
       </div>
       {gruppen.map(({ g, z }) => (
         <section key={g} className="karte overflow-x-auto">
-          <h2 className="px-4 py-3 font-semibold text-sm border-b border-linie">{g}</h2>
+          <h2 className="px-4 py-3 text-[16px] font-bold text-tiefblau border-b border-linie">{g}</h2>
           <table className="tabelle">
             <thead>
               <tr>
@@ -59,8 +59,8 @@ export function StammdatenTabelle({ zeilen: start, darfSchreiben }: { zeilen: St
             </thead>
             <tbody>
               {z.map((s) => (
-                <tr key={s.schluessel} className={s.bestaetigt ? '' : 'bg-gelb-hell/40'}>
-                  <td>
+                <tr key={s.schluessel}>
+                  <td className={s.bestaetigt ? '' : 'shadow-[inset_3px_0_0_#e0a03a]'} title={s.bestaetigt ? undefined : 'Noch nicht bestätigt'}>
                     <div className="font-medium text-[13px]">{s.bezeichnung}</div>
                     {s.notiz && <div className="text-[11px] text-hell">{s.notiz}</div>}
                   </td>
@@ -68,7 +68,7 @@ export function StammdatenTabelle({ zeilen: start, darfSchreiben }: { zeilen: St
                   <td className="text-grau text-[12px] pt-3">{s.einheit}</td>
                   <td className="text-[12px] text-grau pt-3">
                     {s.quelle}
-                    <span className="text-hell"> · {datum(s.updated_at)}</span>
+                    <span className="text-hell">, {datum(s.updated_at)}</span>
                   </td>
                   <td className="text-center pt-2.5">
                     <input type="checkbox" checked={s.bestaetigt} disabled={!darfSchreiben} onChange={(e) => aendern(s, { bestaetigt: e.target.checked })} aria-label={`${s.bezeichnung} bestätigt`} />

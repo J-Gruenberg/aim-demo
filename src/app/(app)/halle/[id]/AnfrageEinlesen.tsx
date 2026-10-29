@@ -95,7 +95,7 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-sm">Aus Anfrage oder Zeichnung übernehmen</h2>
+          <h2 className="text-[16px] font-bold text-tiefblau">Aus Anfrage oder Zeichnung übernehmen</h2>
           <p className="text-[12px] text-grau max-w-[640px]">
             Zeichnung, Skizze oder Baubeschreibung hochladen (PDF, Foto) oder den Text der Kundenanfrage einfügen. Die KI liest Maße, Dach, Wand, Tore und Leistungsumfang ab. Sie sehen jeden Wert mit Fundstelle und entscheiden, was übernommen wird.
           </p>

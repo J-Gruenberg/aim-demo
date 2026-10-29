@@ -21,7 +21,7 @@ export function Vorschlaege({ start, darfSchreiben }: { start: Vorschlag[]; darf
   return (
     <section className="karte p-4 space-y-3 border-tiefblau/30">
       <div>
-        <h2 className="font-semibold text-sm">Vorschläge aus Ihren Korrekturen</h2>
+        <h2 className="text-[16px] font-bold text-tiefblau">Vorschläge aus Ihren Korrekturen</h2>
         <p className="text-[12px] text-grau">Die Software lernt aus den Preisen, die Sie von Hand anpassen. Übernommen wird nichts ohne Ihr Okay.</p>
       </div>
       {liste.map((v) => (
