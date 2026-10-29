@@ -497,7 +497,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               <>
                 <Kz label="Stahlgewicht" wert={`${zahl(zk.kg, 0)} kg`} sub={`${s.anzahl} Positionen, ${zahl(zk.teile, 0)} Teile`} />
                 <Kz label="Fertigung" wert={`${zahl(zk.h, 1)} h`} sub={zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je Tonne` : 'aus den Arbeitsgängen'} />
-                <Kz label="Preis je kg" wert={zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–'} sub={s.pruefen ? `${s.pruefen} zu prüfen` : 'alles geprüft'} warn={s.pruefen > 0} />
+                <Kz label="Preis je kg" wert={zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–'} sub={!s.anzahl ? 'noch keine Positionen' : s.pruefen ? `${s.pruefen} zu prüfen` : 'nichts offen zu prüfen'} warn={s.pruefen > 0} />
               </>
             ) : (
               <>
@@ -789,7 +789,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             {modus === 'lv'
               ? 'Noch keine Positionen. Laden Sie oben das LV oder eine Zeichnung hoch und klicken Sie auf „Positionen lesen“ bzw. „Positionen aus Zeichnung“.'
               : modus === 'zeichnung'
-                ? 'Noch keine Positionen. Zeichnungen oben ablegen und „Lesen und kalkulieren“ klicken.'
+                ? 'Noch keine Positionen. Zeichnungen oben ablegen, dann liest AIM sie mit „Alle lesen und kalkulieren“.'
                 : 'Noch keine Positionen. Oben ein Bauteil hinzufügen, z. B. ein Geländer oder eine Treppe.'}
           </div>
         ) : (
