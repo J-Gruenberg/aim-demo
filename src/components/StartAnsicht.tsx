@@ -56,7 +56,7 @@ export function StartAnsicht({ gruss, datum, uhrzeit, offen, summeOffen, schnitt
               <p className="max-w-[46ch] text-[14px] text-ink-600">Am schnellsten geht es mit „Zeichnung kalkulieren“: Zeichnung ablegen, AIM liest und kalkuliert von selbst.</p>
             </div>
           ) : (
-            <div className="grid min-w-0 flex-1 auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 3xl:grid-cols-3">
+            <div className={`grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 3xl:grid-cols-3 ${projekte.length >= 4 ? 'flex-1 auto-rows-fr' : 'content-start'}`}>
               {projekte.slice(0, 6).map((p, i) => (
                 <div key={p.id} className={i >= 4 ? 'hidden 3xl:grid' : 'grid'}>
                   <KalkKarte p={p} />
