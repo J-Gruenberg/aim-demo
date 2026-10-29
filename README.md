@@ -19,4 +19,6 @@ pnpm test
 ```
 Umgebungsvariablen: siehe `.env.example`.
 
+Betrieb: Vercel-Projekt `aim-demo` (Team Jonas Grünberg's projects, Region fra1), deployt automatisch bei jedem Push auf `main`. Supabase-Projekt `aim-demo` (Frankfurt). Pflicht in Vercel ist nur `ANTHROPIC_API_KEY`; ohne Schlüssel läuft die KI über das Vercel AI Gateway.
+
 Schema: `supabase/migrations`, Stammdaten: `node --import tsx scripts/stammdaten-sql.ts`, Beispielzeichnungen: `python3 scripts/beispielzeichnungen.py`.
