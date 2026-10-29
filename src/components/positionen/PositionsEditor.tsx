@@ -14,6 +14,7 @@ import { mitPreisen, preis, summen, zaehlt, type Datei, type Position, type Ansa
 import { pruefbericht, pruefePosition } from '@/lib/pruefung';
 import { baugruppeRechnen, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
 import { vorschauPfad } from '@/lib/vorschau';
+import { AmpelLegende, SicherheitsAmpel, schnitt, sicherheitVon } from './Ampel';
 
 type Props = {
   modus: 'lv' | 'bauteil' | 'zeichnung';
@@ -29,12 +30,6 @@ type Props = {
 
 type Filter = 'alle' | 'pruefen' | 'offen' | 'freigegeben' | 'fremd';
 
-const STATUS: Record<Position['status'], { label: string; text: string; punkt: string }> = {
-  offen: { label: 'Offen', text: 'text-ink-600', punkt: 'bg-ink-300' },
-  berechnet: { label: 'Berechnet', text: 'text-brand-strong', punkt: 'bg-brand' },
-  pruefen: { label: 'Prüfen', text: 'text-check', punkt: 'bg-check-dot' },
-  freigegeben: { label: 'Freigegeben', text: 'text-ok', punkt: 'bg-ok-dot' },
-};
 
 function groesse(b: number | null | undefined) {
   if (!b) return '';
@@ -117,11 +112,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
   const sichtbar = useMemo(() => {
     let l = pos;
-    if (filter === 'pruefen') l = l.filter((p) => p.status === 'pruefen');
+    if (filter === 'pruefen') l = l.filter((p) => p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5);
     if (filter === 'offen') l = l.filter((p) => p.status === 'offen');
     if (filter === 'freigegeben') l = l.filter((p) => p.status === 'freigegeben');
     if (filter === 'fremd') l = l.filter((p) => p.typ === 'fremd' || p.ansatz?.ausgeblendet);
-    if (unsicherZuerst) l = [...l].sort((a, b) => (a.sicherheit ?? 2) - (b.sicherheit ?? 2));
+    if (unsicherZuerst) l = [...l].sort((a, b) => sicherheitVon(a) - sicherheitVon(b));
     return l;
   }, [pos, filter, unsicherZuerst]);
 
@@ -531,8 +526,8 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         await kalkulieren(offen, false, true);
       }
       const ende = await neuLaden();
-      const zuPruefen = ende.filter((p) => p.status === 'pruefen').length;
-      if (gelesen || offen.length) zeige(true, `Fertig: ${ende.length} Positionen gelesen und kalkuliert${zuPruefen ? `, ${zuPruefen} davon bitte prüfen (gelb markiert)` : ''}.`);
+      const sch = schnitt(ende);
+      if (gelesen || offen.length) zeige(true, `Fertig: ${ende.length} Positionen gelesen und kalkuliert${sch !== null ? `, durchschnittliche Sicherheit ${Math.round(sch * 100)} %` : ''}.`);
     } finally {
       setSchritt(null);
       setLaeuft(null);
@@ -566,7 +561,10 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   }
 
   const offen = pos.find((p) => p.id === offenId) ?? null;
-  const freigebbar = pos.filter((p) => zaehlt(p) && p.status === 'berechnet' && (p.sicherheit ?? 0) >= 0.9 && p.ep !== null);
+  const freigebbar = pos.filter((p) => zaehlt(p) && (p.status === 'berechnet' || p.status === 'pruefen') && sicherheitVon(p) >= 0.8 && p.ep !== null && !pruefePosition(p).some((f) => f.stufe === 'warnung'));
+  const sch = schnitt(pos.filter(zaehlt));
+  const unsicher = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5).length;
+  const sicherAnzahl = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && sicherheitVon(p) >= 0.65).length;
 
   const kzHero: { label: string; wert: string; sub?: string; warn?: boolean }[] =
     modus === 'zeichnung'
@@ -578,7 +576,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         ]
       : [
           { label: 'Positionen', wert: `${s.anzahl}`, sub: `${s.frei} freigegeben` },
-          { label: 'Zu prüfen', wert: `${s.pruefen}`, sub: s.offen ? `${s.offen} noch offen` : 'alle kalkuliert' },
+          { label: 'Ø Sicherheit', wert: sch !== null ? `${Math.round(sch * 100)} %` : '–', sub: s.offen ? `${s.offen} noch offen` : 'alle kalkuliert' },
           { label: 'Fremdgewerke', wert: `${s.fremd}`, sub: 'nicht in der Summe' },
           { label: 'KI-Kosten', wert: euro(kiKosten), sub: `Budget ${euro(projekt.ki_budget_eur, true)}` },
         ];
@@ -602,7 +600,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 ) : (
                   <>
                     <b>{s.anzahl}</b> {s.anzahl === 1 ? 'Position' : 'Positionen'}
-                    {s.pruefen ? <>, <b>{s.pruefen}</b> {s.pruefen === 1 ? 'wartet' : 'warten'} auf Ihre Prüfung.</> : ', alles geprüft.'}
+                    {sch !== null ? <>, <b>{sicherAnzahl}</b> davon sicher kalkuliert. Durchschnittliche Sicherheit <b>{Math.round(sch * 100)} %</b>.</> : '.'}
                     {s.freigegeben > 0 && <> Freigegeben: <b>{euro(s.freigegeben, true)}</b>.</>}
                   </>
                 )}
@@ -959,7 +957,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             {(
               [
                 ['alle', `Alle ${pos.length}`],
-                ['pruefen', `Prüfen ${s.pruefen}`],
+                ['pruefen', `Unsicher ${unsicher}`],
                 ['offen', `Offen ${s.offen}`],
                 ['freigegeben', `Freigegeben ${s.frei}`],
                 ['fremd', `Fremd ${s.fremd}`],
@@ -984,7 +982,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               </div>
             )}
             {darfSchreiben && freigebbar.length > 0 && (
-              <button className="knopf-zweit knopf-klein" onClick={() => confirm(`${freigebbar.length} sichere Positionen (ab 90 %) mit zusammen ${euro(freigebbar.reduce((x, p) => x + Number(p.gp ?? 0), 0), true)} freigeben?`) && freigeben(freigebbar.map((p) => p.id))}>
+              <button className="knopf-zweit knopf-klein" onClick={() => confirm(`${freigebbar.length} sehr sichere Positionen (ab 80 %) mit zusammen ${euro(freigebbar.reduce((x, p) => x + Number(p.gp ?? 0), 0), true)} freigeben?`) && freigeben(freigebbar.map((p) => p.id))}>
                 {freigebbar.length} sichere freigeben
               </button>
             )}
@@ -1011,7 +1009,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                   {modus !== 'zeichnung' && <th className="w-36">Ansatz</th>}
                   <th className="text-right w-28">EP</th>
                   <th className="text-right w-32">GP</th>
-                  <th className="w-36">Status</th>
+                  <th className="w-36">Sicherheit</th>
                 </tr>
               </thead>
               <tbody>
@@ -1035,15 +1033,14 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       <td className="text-right zahl text-[14px] whitespace-nowrap">{euro(p.ep)}</td>
                       <td className="text-right zahl text-[14px] font-semibold whitespace-nowrap">{euro(p.gp)}</td>
                       <td>
-                        <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${STATUS[p.status].text}`}><span className={`w-2 h-2 rounded-full ${STATUS[p.status].punkt}`} />{STATUS[p.status].label}</span>
-                        {pruefePosition(p).some((f) => f.stufe === 'warnung') && <TriangleAlert className="ml-1 inline size-3.5 text-check" strokeWidth={2} aria-label={pruefePosition(p).map((f) => f.text).join(' ')} />}
-                        {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="mt-0.5 whitespace-nowrap text-[12px] text-ink-500">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
+                        <SicherheitsAmpel p={p} />
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            <div className="border-t border-line px-4 py-3"><AmpelLegende /></div>
           </div>
         )}
         </div>

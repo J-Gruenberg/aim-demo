@@ -23,15 +23,18 @@ export default async function Start() {
   const sb = await supabaseServer();
   const profil = await aktuellesProfil();
   const monatsAnfang = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const [{ data }, { count: pruefen }, { data: stamm }, { data: ki }] = await Promise.all([
+  const [{ data }, { data: kalkuliert }, { data: stamm }, { data: ki }] = await Promise.all([
     sb.from('projekte').select('id,typ,titel,kunde,ort,status,ergebnis_label,summe_netto,updated_at,created_at').order('updated_at', { ascending: false }).limit(200),
-    sb.from('positionen').select('id', { count: 'exact', head: true }).eq('status', 'pruefen'),
+    sb.from('positionen').select('sicherheit,gp,quelle,status,typ').in('status', ['berechnet', 'pruefen', 'freigegeben']).limit(5000),
     sb.from('stammdaten').select('bestaetigt'),
     sb.from('ki_aufrufe').select('kosten_eur').gte('created_at', monatsAnfang),
   ]);
   const projekte = (data ?? []) as (KalkZeile & { created_at: string })[];
   const k = begruessung(profil?.name ?? null);
 
+  const kp = (kalkuliert ?? []).filter((p) => p.typ !== 'fremd');
+  const gew = kp.map((p) => Math.max(1, Math.abs(Number(p.gp ?? 0))));
+  const schnitt = kp.length ? kp.reduce((a, p, i) => a + (p.quelle === 'hand' || p.sicherheit === null ? 1 : Number(p.sicherheit)) * gew[i], 0) / gew.reduce((a, b) => a + b, 0) : null;
   const offen = projekte.filter((p) => p.status !== 'abgegeben' && p.ergebnis_label !== 'beauftragt' && p.ergebnis_label !== 'nicht_beauftragt');
   const summeOffen = offen.reduce((s, p) => s + Number(p.summe_netto ?? 0), 0);
   const imMonat = projekte.filter((p) => p.created_at >= monatsAnfang);
@@ -56,7 +59,7 @@ export default async function Start() {
             {offen.length ? (
               <>
                 <b>{offen.length}</b> {offen.length === 1 ? 'Kalkulation' : 'Kalkulationen'} in Arbeit, zusammen <b>{euro(summeOffen, true)}</b>.{' '}
-                {pruefen ? <><b>{pruefen}</b> {pruefen === 1 ? 'Position wartet' : 'Positionen warten'} auf Ihre Prüfung.</> : 'Alles geprüft.'}
+                {schnitt !== null && <>Durchschnittliche Sicherheit der Kalkulation <b>{Math.round(schnitt * 100)} %</b>.</>}
               </>
             ) : (
               <>Legen Sie eine Werkstattzeichnung ab. AIM liest Stückliste, Bohrungen und Nähte und rechnet das Angebot mit Ihren Sätzen, in <b>wenigen Minuten</b>.</>
