@@ -1,8 +1,8 @@
 export const metadata = { title: 'Hilfe' };
 
 const SCHRITTE = [
-  ['Nach Zeichnung', '„Neue Kalkulation“, dann „Nach Zeichnung“. Werkstattzeichnungen hineinziehen, „Alle lesen und kalkulieren“. Jede Position zeigt Stückliste, Arbeitsgänge und den Rechenweg über Ihre Kostenstellen.'],
-  ['Ausschreibung', '„Neue Kalkulation“, dann „Ausschreibung“. LV als PDF oder GAEB hineinziehen, „Positionen lesen“, „Offene kalkulieren“, prüfen und freigeben.'],
+  ['Nach Zeichnung', '„Neue Kalkulation“, dann „Nach Zeichnung“. Werkstattzeichnungen hineinziehen, AIM liest und kalkuliert von selbst. Jede Position zeigt Stückliste, Arbeitsgänge und den Rechenweg über Ihre Kostenstellen.'],
+  ['Ausschreibung', '„Neue Kalkulation“, dann „Ausschreibung“. LV als GAEB oder PDF, gern mit Plänen, alles auf einmal hineinziehen. AIM liest und kalkuliert von selbst, Sie prüfen und geben frei.'],
   ['Halle', '„Neue Kalkulation“, dann „Hallenbau“. Maße und Ausführung links eingeben, Vordruck rechts prüfen, „Angebot ansehen“.'],
   ['Treppe und Geländer', '„Neue Kalkulation“, dann „Treppe, Geländer, Stahlbau“. Bauteil hinzufügen und die Werte anpassen.'],
   ['Stammdaten', 'Kostenstellen, Zuschläge und Zeitwerte anpassen: Wert anklicken, neue Zahl, Enter. Danach in der Kalkulation „Neu rechnen“.'],

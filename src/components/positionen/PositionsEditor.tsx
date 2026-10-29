@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CircleCheck, Download, FileStack, FileText, ScanLine, Trash2, TriangleAlert, Upload } from 'lucide-react';
+import { CircleCheck, Download, FileStack, FileText, MoreHorizontal, RefreshCw, ScanLine, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { Stammdaten } from '@/lib/engine/stammdaten';
 import type { Ansatz } from '@/lib/engine/bauteile';
@@ -68,6 +68,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const [berichtOffen, setBerichtOffen] = useState(false);
   const [vorschau, setVorschau] = useState<Record<string, string>>({});
   const [liestId, setLiestId] = useState<string | null>(null);
+  const [schritt, setSchritt] = useState<string | null>(null);
   const dateiInput = useRef<HTMLInputElement>(null);
 
   /** Vorschaubilder der Zeichnungen holen, fehlende einmal rendern lassen. */
@@ -287,21 +288,22 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener');
   }
 
-  async function lesen(d: Datei) {
+  async function lesen(d: Datei, still = false): Promise<number> {
     // GAEB wird komplett neu eingelesen: vorher fragen, sonst sind Kalkulation und Freigaben weg
     const ausGaeb = pos.filter((p) => (p.quelle ?? '').startsWith(`gaeb:${d.id}:`)).length;
-    if (ausGaeb && !confirm(`Diese GAEB-Datei ist schon gelesen. Neu lesen ersetzt alle ${ausGaeb} Positionen daraus, samt Kalkulation und Freigaben. Wirklich neu lesen?`)) return;
+    if (ausGaeb && !still && !confirm(`Diese GAEB-Datei ist schon gelesen. Neu lesen ersetzt alle ${ausGaeb} Positionen daraus, samt Kalkulation und Freigaben. Wirklich neu lesen?`)) return 0;
     let ab: number | null = 1;
     // Schon gelesen? Dann hinter der letzten gelesenen Seite weitermachen statt doppelt einzulesen
     const gelesen = pos.map((p) => p.quelle ?? '').filter((q) => q.startsWith(`pdf:${d.id}:`)).map((q) => Number(q.split(':')[2]) || 0);
     if (gelesen.length) {
       const bis = Math.max(...gelesen);
-      if (!confirm(`Aus dieser Datei sind schon ${gelesen.length} Positionen bis Seite ${bis} gelesen. Ab Seite ${bis + 1} weiterlesen?`)) return;
+      if (still || !confirm(`Aus dieser Datei sind schon ${gelesen.length} Positionen bis Seite ${bis} gelesen. Ab Seite ${bis + 1} weiterlesen?`)) return 0;
       ab = bis + 1;
     }
     let neuGesamt = 0;
     while (ab !== null) {
       setLaeuft(`Lese ${d.name}${ab > 1 ? `, ab Seite ${ab}` : ''} …`);
+      setLiestId(d.id);
       let r: Response | null = null;
       let j: { fehler?: string; neu: number; naechste: number | null } = { neu: 0, naechste: null };
       try {
@@ -337,8 +339,12 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       ab = j.naechste;
       await neuLaden();
     }
-    setLaeuft(null);
-    if (neuGesamt) zeige(true, `${neuGesamt} Positionen erkannt. Jetzt kalkulieren lassen.`);
+    setLiestId(null);
+    if (!still) {
+      setLaeuft(null);
+      if (neuGesamt) zeige(true, `${neuGesamt} Positionen erkannt. Jetzt kalkulieren lassen.`);
+    }
+    return neuGesamt;
   }
 
   /** Liest eine Werkstattzeichnung Blatt für Blatt. Jedes Blatt ist ein eigener Aufruf, damit nichts in eine Zeitgrenze läuft. */
@@ -401,9 +407,12 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     zeige(true, `${offen.length} Zeichnungen gelesen, ${n} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
   }
 
-  async function kalkulieren(nur?: string[], gruendlich = false) {
+  async function kalkulieren(nur?: string[], gruendlich = false, still = false): Promise<number> {
     const ziel = (nur ?? pos.filter((p) => p.status === 'offen' && !p.ansatz?.ausgeblendet).map((p) => p.id));
-    if (!ziel.length) return zeige(true, 'Keine offenen Positionen.');
+    if (!ziel.length) {
+      if (!still) zeige(true, 'Keine offenen Positionen.');
+      return 0;
+    }
     // Kleine Pakete: jede Anfrage bleibt unter einer Minute, auch bei wackeliger Verbindung
     const paket = 6;
     let fertig = 0;
@@ -446,8 +455,88 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     }
     const neu = await neuLaden();
     await speichereZeilen([], neu);
-    setLaeuft(null);
-    if (fertig) zeige(true, `${fertig} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+    if (!still) {
+      setLaeuft(null);
+      if (fertig) zeige(true, `${fertig} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+    }
+    return fertig;
+  }
+
+  /**
+   * Unterlagen ablegen und AIM macht den Rest: hochladen, das LV genau einmal lesen
+   * (GAEB vor PDF, ohne LV die Pläne), Vorbemerkungen lesen, alle offenen Positionen kalkulieren.
+   */
+  async function ablegen(files: FileList | File[]) {
+    const neu = await hochladen(files);
+    if (!neu.length || !darfSchreiben) return;
+    await automatisch(neu);
+  }
+
+  /** Liest und kalkuliert die übergebenen Unterlagen von selbst (siehe ablegen). */
+  async function automatisch(neu: Datei[]) {
+    try {
+      if (modus === 'zeichnung') {
+        const z = neu.filter((d) => d.art === 'zeichnung');
+        let n = 0;
+        for (const [i, d] of z.entries()) {
+          setSchritt(z.length > 1 ? `Zeichnung ${i + 1} von ${z.length}` : 'Zeichnung wird gelesen und kalkuliert');
+          n += await zeichnungLesen(d, true);
+        }
+        if (z.length) zeige(true, `${z.length} ${z.length === 1 ? 'Zeichnung' : 'Zeichnungen'} gelesen, ${n} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+        return;
+      }
+      if (modus !== 'lv') return;
+
+      const { data: dl } = await sb.from('dateien').select('*').eq('projekt_id', projekt.id);
+      const alle = (dl ?? []) as Datei[];
+      const vorher = await neuLaden();
+      const istNeu = (d: Datei) => neu.some((x) => x.id === d.id);
+      const gaeb = alle.filter((d) => d.art === 'gaeb');
+      const lvPdf = alle.filter((d) => d.art === 'lv');
+
+      // Welche Datei liefert die Positionen? Immer nur eine Quelle, damit nichts doppelt kommt.
+      let quelle: Datei[] = [];
+      if (!vorher.length) {
+        if (gaeb.length) quelle = [gaeb.find(istNeu) ?? gaeb[0]];
+        else if (lvPdf.length) quelle = [lvPdf.find(istNeu) ?? lvPdf[0]];
+        else {
+          const pdfs = alle.filter((d) => /\.pdf$/i.test(d.name) && (d.art === 'plan' || d.art === 'sonstiges'));
+          const kandidat = pdfs.find((d) => /(leistung|ausschreib|positionen|angebot|lv)/i.test(d.name)) ?? [...pdfs].filter((d) => (d.groesse ?? 0) < 3_000_000).sort((a, b) => (a.groesse ?? 0) - (b.groesse ?? 0))[0];
+          if (kandidat) {
+            await dateiArt(kandidat, 'lv');
+            quelle = [{ ...kandidat, art: 'lv' }];
+          } else quelle = alle.filter((d) => d.art === 'plan');
+        }
+      } else {
+        const neuGaeb = neu.filter((d) => d.art === 'gaeb');
+        quelle = neuGaeb.length ? neuGaeb : neu.filter((d) => d.art === 'lv');
+      }
+
+      const schritte = (quelle.length ? 1 : 0) + 1;
+      let nr = 0;
+      let gelesen = 0;
+      for (const d of quelle) {
+        nr = 1;
+        setSchritt(`Schritt 1 von ${schritte}: ${d.art === 'plan' ? 'Positionen aus den Plänen' : 'Leistungsverzeichnis'} wird gelesen`);
+        gelesen += await lesen(d, true);
+      }
+      for (const d of neu.filter((x) => x.art === 'baubeschreibung')) {
+        setSchritt('Vorbemerkungen werden gelesen');
+        await lesen(d, true);
+      }
+      const liste = await neuLaden();
+      const offen = liste.filter((p) => p.status === 'offen' && !p.ansatz?.ausgeblendet).map((p) => p.id);
+      if (offen.length) {
+        setSchritt(`Schritt ${nr + 1} von ${schritte}: Preise werden kalkuliert`);
+        await kalkulieren(offen, false, true);
+      }
+      const ende = await neuLaden();
+      const zuPruefen = ende.filter((p) => p.status === 'pruefen').length;
+      if (gelesen || offen.length) zeige(true, `Fertig: ${ende.length} Positionen gelesen und kalkuliert${zuPruefen ? `, ${zuPruefen} davon bitte prüfen (gelb markiert)` : ''}.`);
+    } finally {
+      setSchritt(null);
+      setLaeuft(null);
+    }
   }
 
   async function neuePosition(art: Ansatz['art']) {
@@ -560,9 +649,13 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         </div>
       )}
       {laeuft && (
-        <div role="status" className="flex items-center gap-3 rounded-2xl bg-brand-tint px-4 py-3 text-[14px] font-semibold text-brand-strong">
-          <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-          {laeuft}
+        <div role="status" className="flex items-start gap-3 rounded-2xl bg-brand-tint px-5 py-4 text-brand-strong">
+          <span className="mt-0.5 size-5 shrink-0 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <span className="min-w-0">
+            {schritt && <span className="block text-[15px] font-bold">{schritt}</span>}
+            <span className={`block ${schritt ? 'text-[13px] font-medium text-brand-strong/80' : 'text-[14px] font-semibold'}`}>{laeuft}</span>
+            {schritt && <span className="mt-1 block text-[12px] text-brand-strong/70">AIM arbeitet von selbst weiter. Lassen Sie diese Seite bitte geöffnet, bis es fertig ist.</span>}
+          </span>
         </div>
       )}
 
@@ -573,7 +666,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            if (e.dataTransfer.files.length) hochladen(e.dataTransfer.files);
+            if (e.dataTransfer.files.length) ablegen(e.dataTransfer.files);
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -583,7 +676,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             </h2>
             {darfSchreiben && (
               <div className="flex flex-wrap gap-2">
-                <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.PDF,.PNG,.JPG,.JPEG" onChange={(e) => e.target.files && hochladen(e.target.files)} />
+                <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.PDF,.PNG,.JPG,.JPEG" onChange={(e) => { if (e.target.files) ablegen(e.target.files); e.target.value = ''; }} />
                 {dateien.length > 0 && (
                   <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>
                     <Upload className="size-4" strokeWidth={1.75} aria-hidden /> Hinzufügen
@@ -681,58 +774,119 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
       {modus === 'lv' && (
         <section
-          className="karte p-4"
+          aria-labelledby="unterlagen"
+          className="flex min-w-0 flex-col gap-3"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            if (e.dataTransfer.files.length) hochladen(e.dataTransfer.files);
+            if (e.dataTransfer.files.length) ablegen(e.dataTransfer.files);
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-sm">Unterlagen</h2>
-              <p className="text-[12px] text-grau">LV als GAEB (X83) oder PDF, dazu Pläne und Baubeschreibung. Kein LV? Zeichnung hochladen, Art „Plan“ wählen und „Positionen aus Zeichnung“ klicken.</p>
-            </div>
+            <h2 id="unterlagen" className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.01em]">
+              Unterlagen
+              {dateien.length > 0 && <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-sunken px-2 font-mono text-[12px] font-medium text-ink-600">{dateien.length}</span>}
+            </h2>
             {darfSchreiben && (
               <>
-                <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.x83,.x81,.x86,.X83,.X81,.X86,.d83,.D83,.p83,.P83" onChange={(e) => e.target.files && hochladen(e.target.files)} />
-                <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>Dateien wählen</button>
+                <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.x83,.x81,.x86,.X83,.X81,.X86,.d83,.D83,.p83,.P83" onChange={(e) => { if (e.target.files) ablegen(e.target.files); e.target.value = ''; }} />
+                {dateien.length > 0 && (
+                  <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>
+                    <Upload className="size-4" strokeWidth={1.75} aria-hidden /> Hinzufügen
+                  </button>
+                )}
               </>
             )}
           </div>
+
+          {dateien.length === 0 && darfSchreiben && (
+            <button
+              type="button"
+              className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-line-strong bg-surface/60 p-8 text-center transition-colors hover:border-brand hover:bg-brand-tint/40"
+              onClick={() => dateiInput.current?.click()}
+              disabled={!!laeuft}
+            >
+              <span className="grid size-12 place-items-center rounded-full bg-brand-tint text-brand-strong"><Upload className="size-5" strokeWidth={1.75} aria-hidden /></span>
+              <span className="text-[18px] font-bold text-ink-950">Ausschreibung hier ablegen</span>
+              <span className="max-w-[52ch] text-[14px] text-ink-600">Leistungsverzeichnis als GAEB oder PDF, gern mit Plänen und Baubeschreibung. Alles auf einmal hineinziehen, AIM liest und kalkuliert dann von selbst.</span>
+            </button>
+          )}
+
+          {modus === 'lv' && darfSchreiben && dateien.length > 0 && pos.length === 0 && !laeuft && (
+            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-brand-tint-2 px-5 py-4" style={{ background: 'var(--brand-gradient-soft)' }}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[16px] font-bold text-ink-950">Unterlagen liegen bereit</p>
+                <p className="text-[14px] text-ink-600">AIM liest das Leistungsverzeichnis und kalkuliert alle Positionen in einem Durchgang.</p>
+              </div>
+              <button className="knopf-primaer knopf-gross" onClick={() => automatisch(dateien)}>
+                <ScanLine className="size-[18px]" strokeWidth={1.75} aria-hidden /> Lesen und kalkulieren
+              </button>
+            </div>
+          )}
+
           {dateien.length > 0 && (
-            <div className="overflow-x-auto mt-3">
-            <table className="tabelle">
-              <tbody>
-                {dateien.map((d) => (
-                  <tr key={d.id}>
-                    <td><button className="text-left hover:text-rot font-medium text-[13px]" onClick={() => dateiOeffnen(d)}>{d.name}</button>
-                      <div className="text-[11px] text-hell">{d.groesse ? `${zahl(d.groesse / 1_000_000, 1)} MB` : ''}{d.seiten ? ` · ${d.seiten} Seiten` : ''}</div></td>
-                    <td className="w-44">
-                      <select className="eingabe eingabe-klein" value={d.art} disabled={!darfSchreiben} onChange={(e) => dateiArt(d, e.target.value as Datei['art'])}>
-                        <option value="gaeb">GAEB-LV</option>
-                        <option value="lv">LV (PDF)</option>
-                        <option value="plan">Plan</option>
-                        <option value="baubeschreibung">Baubeschreibung</option>
-                        <option value="sonstiges">Sonstiges</option>
-                      </select>
-                    </td>
-                    <td className="w-64 text-right whitespace-nowrap">
-                      {(d.art === 'lv' || d.art === 'gaeb' || d.art === 'baubeschreibung' || d.art === 'plan') && darfSchreiben && (
-                        <button className="knopf-blau knopf-klein" disabled={!!laeuft} onClick={() => lesen(d)}>{d.art === 'baubeschreibung' ? 'Hinweise lesen' : d.art === 'plan' ? 'Positionen aus Zeichnung' : 'Positionen lesen'}</button>
-                      )}
-                      {darfSchreiben && <button className="knopf-leise knopf-klein" onClick={() => dateiLoeschen(d)}>Entfernen</button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="karte divide-y divide-line">
+              {dateien.map((d) => {
+                const n = pos.filter((p) => { const q = p.quelle ?? ''; return q.startsWith(`gaeb:${d.id}:`) || q.startsWith(`pdf:${d.id}:`); }).length;
+                const liest = liestId === d.id;
+                const gaebDa = dateien.some((x) => x.art === 'gaeb');
+                const ART: Record<Datei['art'], string> = { gaeb: 'Leistungsverzeichnis (GAEB)', lv: 'Leistungsverzeichnis (PDF)', plan: 'Plan', baubeschreibung: 'Baubeschreibung', zeichnung: 'Zeichnung', sonstiges: 'Sonstiges' };
+                const stand = liest
+                  ? { text: 'Wird gelesen', ton: 'text-brand-strong', punkt: 'puls bg-brand' }
+                  : n
+                    ? { text: `Gelesen, ${n} ${n === 1 ? 'Position' : 'Positionen'}`, ton: 'text-ok', punkt: 'bg-ok-dot' }
+                    : d.art === 'lv' && gaebDa
+                      ? { text: 'Nicht nötig, das LV kommt aus der GAEB-Datei', ton: 'text-ink-500', punkt: 'bg-ink-300' }
+                      : d.art === 'plan'
+                        ? { text: 'Als Plan hinterlegt', ton: 'text-ink-600', punkt: 'bg-label-sky-fg/40' }
+                        : d.art === 'baubeschreibung'
+                          ? { text: 'Vorbemerkungen', ton: 'text-ink-600', punkt: 'bg-ink-300' }
+                          : { text: 'Noch nicht gelesen', ton: 'text-ink-600', punkt: 'bg-ink-300' };
+                return (
+                  <div key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
+                    <div className="min-w-0 flex-1 basis-[260px]">
+                      <button className="block max-w-full truncate text-left text-[14px] font-bold text-ink-950 hover:text-brand-strong" onClick={() => dateiOeffnen(d)}>{d.name}</button>
+                      <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-500">
+                        <span>{ART[d.art]}</span>
+                        <span>{groesse(d.groesse)}{d.seiten ? `, ${d.seiten} Seiten` : ''}</span>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center gap-2 text-[13px] font-semibold ${stand.ton}`}><span className={`size-2 rounded-full ${stand.punkt}`} />{stand.text}</span>
+                    {darfSchreiben && !liest && (
+                      <details className="relative">
+                        <summary className="grid size-8 cursor-pointer list-none place-items-center rounded-full text-ink-500 hover:bg-[var(--bg-hover)] [&::-webkit-details-marker]:hidden" aria-label="Mehr">
+                          <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+                        </summary>
+                        <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-2xl border border-line bg-surface p-2 shadow-[var(--shadow-float)]">
+                          <label className="label px-1">Art der Datei</label>
+                          <select className="eingabe eingabe-klein" value={d.art} onChange={(e) => dateiArt(d, e.target.value as Datei['art'])}>
+                            <option value="gaeb">Leistungsverzeichnis (GAEB)</option>
+                            <option value="lv">Leistungsverzeichnis (PDF)</option>
+                            <option value="plan">Plan</option>
+                            <option value="baubeschreibung">Baubeschreibung</option>
+                            <option value="sonstiges">Sonstiges</option>
+                          </select>
+                          {(d.art === 'lv' || d.art === 'gaeb' || d.art === 'baubeschreibung' || d.art === 'plan') && (
+                            <button className="mt-2 flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-[14px] font-semibold hover:bg-[var(--bg-hover)]" disabled={!!laeuft} onClick={() => lesen(d)}>
+                              <RefreshCw className="size-4 text-ink-500" strokeWidth={1.75} aria-hidden />
+                              {d.art === 'baubeschreibung' ? 'Vorbemerkungen lesen' : d.art === 'plan' ? 'Positionen aus diesem Plan lesen' : n ? 'Neu lesen' : 'Positionen lesen'}
+                            </button>
+                          )}
+                          <button className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-[14px] font-semibold text-signal hover:bg-signal-tint" onClick={() => dateiLoeschen(d)}>
+                            <Trash2 className="size-4" strokeWidth={1.75} aria-hidden /> Entfernen
+                          </button>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           {hinweise.length > 0 && (
-            <details className="mt-3 rounded-xl bg-papier px-3 py-2">
-              <summary className="text-sm cursor-pointer font-medium">Hinweise aus Vorbemerkungen ({hinweise.length})</summary>
-              <ul className="mt-2 list-disc pl-5 text-[13px] text-grau space-y-0.5">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
+            <details className="karte px-5 py-3.5">
+              <summary className="cursor-pointer text-[14px] font-bold text-ink-950">Hinweise aus den Vorbemerkungen ({hinweise.length})</summary>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[13px] text-ink-600">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </details>
           )}
         </section>
@@ -840,9 +994,9 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         {pos.length === 0 ? (
           <div className="px-6 py-12 text-center text-[15px] text-ink-600">
             {modus === 'lv'
-              ? 'Noch keine Positionen. Laden Sie oben das LV oder eine Zeichnung hoch und klicken Sie auf „Positionen lesen“ bzw. „Positionen aus Zeichnung“.'
+              ? 'Noch keine Positionen. Legen Sie oben die Ausschreibung ab, AIM liest und kalkuliert dann von selbst.'
               : modus === 'zeichnung'
-                ? 'Noch keine Positionen. Zeichnungen oben ablegen, dann liest AIM sie mit „Alle lesen und kalkulieren“.'
+                ? 'Noch keine Positionen. Legen Sie oben Zeichnungen ab, AIM liest und kalkuliert dann von selbst.'
                 : 'Noch keine Positionen. Oben ein Bauteil hinzufügen, z. B. ein Geländer oder eine Treppe.'}
           </div>
         ) : (
