@@ -93,7 +93,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       geaendert++;
       continue;
     }
-    const fehlt = k.zeichnung_fehlt?.trim() || (detailliert && a.nur_gewicht ? 'ohne Nummer' : '');
+    const roh = k.zeichnung_fehlt?.trim() || (detailliert && a.nur_gewicht ? 'ohne Nummer' : '');
+    // Nur echte Zeichnungsnummern anzeigen, Erklärsätze der KI werden zu „ohne Nummer“
+    const fehlt = roh && !/^[A-Z0-9][A-Z0-9.\-/ ]{3,24}$/i.test(roh) ? 'ohne Nummer' : roh && !/\d{3}/.test(roh) ? 'ohne Nummer' : roh;
     if (fehlt) a.zeichnung_fehlt = fehlt;
     const menge = k.menge > 0 ? k.menge : Number(p.menge ?? 1) || 1;
     let ep: number | null = null;
