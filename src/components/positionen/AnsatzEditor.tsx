@@ -208,9 +208,9 @@ function BaugruppeFelder({ a, onA }: { a: BaugruppeAnsatz; onA: (a: BaugruppeAns
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-linie overflow-x-auto">
-        <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-hell border-b border-linie flex">
+        <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie flex">
           Stückliste je Stück{a.zeichnung ? ` · ${a.zeichnung}` : ''}
-          <span className="ml-auto normal-case tracking-normal">
+          <span className="ml-auto">
             Summe {zahl(summe, 2)} kg{a.gewicht_zeichnung_kg ? `, Zeichnung ${zahl(a.gewicht_zeichnung_kg, 2)} kg` : ''}
           </span>
         </div>

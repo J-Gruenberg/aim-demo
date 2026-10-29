@@ -110,9 +110,9 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 
       {e.gelesen && (e.gelesen.hinweise.length > 0 || e.gelesen.fehlend.length > 0) && (
         <div className="rounded-xl border border-linie bg-flaeche px-4 py-3 text-[13px] space-y-1">
-          <div className="text-[11px] uppercase tracking-wider text-hell">
+          <div className="text-[12px] font-medium schmal text-hell">
             Aus {e.gelesen.quellen.join(', ')} übernommen am {datum(e.gelesen.datum)}
-            <button className="ml-3 normal-case tracking-normal text-hell hover:text-rot" onClick={() => setze('gelesen', undefined)}>ausblenden</button>
+            <button className="ml-3 text-hell hover:text-rot" onClick={() => setze('gelesen', undefined)}>ausblenden</button>
           </div>
           {e.gelesen.fehlend.length > 0 && <p><span className="font-medium">Fehlt noch:</span> {e.gelesen.fehlend.join(' · ')}</p>}
           {e.gelesen.hinweise.length > 0 && <p><span className="font-medium">Hinweise:</span> {e.gelesen.hinweise.join(' · ')}</p>}
@@ -183,7 +183,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
                 <Feld label="Breite m"><ZahlFeld klein wert={t.breite} onWert={(v) => setze('tore', e.tore.map((x, j) => (j === i ? { ...x, breite: v ?? 0 } : x)))} /></Feld>
                 <Feld label="Höhe m"><ZahlFeld klein wert={t.hoehe} onWert={(v) => setze('tore', e.tore.map((x, j) => (j === i ? { ...x, hoehe: v ?? 0 } : x)))} /></Feld>
                 <div className="flex flex-col items-center gap-1 pb-1">
-                  <label className="text-[10px] text-hell uppercase">Motor</label>
+                  <label className="text-[11px] text-hell schmal">Motor</label>
                   <input type="checkbox" checked={t.antrieb} onChange={(ev) => setze('tore', e.tore.map((x, j): Tor => (j === i ? { ...x, antrieb: ev.target.checked } : x)))} />
                 </div>
                 <button className="col-span-4 text-left text-[11px] text-hell hover:text-rot -mt-1" onClick={() => setze('tore', e.tore.filter((_, j) => j !== i))}>Tor entfernen</button>
@@ -363,7 +363,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 function Kennzahl({ label, wert, sub, gross = false }: { label: string; wert: string; sub?: string; gross?: boolean }) {
   return (
     <div className={`rounded-xl px-4 py-3 ${gross ? 'bg-tiefblau text-white' : 'karte'}`}>
-      <div className={`text-[11px] uppercase tracking-wider ${gross ? 'text-white/60' : 'text-hell'}`}>{label}</div>
+      <div className={`text-[12px] font-medium schmal ${gross ? 'text-white/60' : 'text-hell'}`}>{label}</div>
       <div className={`zahl mt-1 font-semibold ${gross ? 'text-[24px]' : 'text-[20px]'}`}>{wert}</div>
       {sub && <div className={`text-[12px] ${gross ? 'text-white/60' : 'text-grau'}`}>{sub}</div>}
     </div>

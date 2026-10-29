@@ -165,13 +165,13 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
           )}
           {ergebnis.v.fehlend.length > 0 && (
             <div className="rounded-lg border border-linie p-3">
-              <div className="text-[11px] uppercase tracking-wider text-hell mb-1">Fehlt noch für ein belastbares Angebot</div>
+              <div className="text-[12px] font-medium schmal text-hell mb-1">Fehlt noch für ein belastbares Angebot</div>
               <ul className="text-[13px] list-disc pl-5 space-y-0.5">{ergebnis.v.fehlend.map((h) => <li key={h}>{h}</li>)}</ul>
             </div>
           )}
           {ergebnis.v.hinweise.length > 0 && (
             <div className="rounded-lg border border-linie p-3">
-              <div className="text-[11px] uppercase tracking-wider text-hell mb-1">Hinweise</div>
+              <div className="text-[12px] font-medium schmal text-hell mb-1">Hinweise</div>
               <ul className="text-[13px] list-disc pl-5 space-y-0.5">{ergebnis.v.hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </div>
           )}

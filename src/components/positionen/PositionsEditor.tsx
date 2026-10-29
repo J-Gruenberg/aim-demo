@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { Stammdaten } from '@/lib/engine/stammdaten';
@@ -12,6 +12,7 @@ import { AnsatzEditor, standardAnsatz } from './AnsatzEditor';
 import { mitPreisen, preis, summen, zaehlt, type Datei, type Position, type AnsatzGespeichert, type Abgleich, type ArchivTreffer } from './typen';
 import { pruefbericht, pruefePosition } from '@/lib/pruefung';
 import { baugruppeRechnen, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
+import { vorschauPfad } from '@/lib/vorschau';
 
 type Props = {
   modus: 'lv' | 'bauteil' | 'zeichnung';
@@ -27,12 +28,17 @@ type Props = {
 
 type Filter = 'alle' | 'pruefen' | 'offen' | 'freigegeben' | 'fremd';
 
-const STATUS: Record<Position['status'], { label: string; klasse: string }> = {
-  offen: { label: 'Offen', klasse: 'bg-papier text-grau border border-linie' },
-  berechnet: { label: 'Berechnet', klasse: 'bg-blau-hell text-tiefblau' },
-  pruefen: { label: 'Prüfen', klasse: 'bg-gelb-hell text-gelb' },
-  freigegeben: { label: 'Freigegeben', klasse: 'bg-gruen-hell text-gruen' },
+const STATUS: Record<Position['status'], { label: string; text: string; punkt: string }> = {
+  offen: { label: 'Offen', text: 'text-grau', punkt: 'bg-linie-stark' },
+  berechnet: { label: 'Berechnet', text: 'text-tiefblau', punkt: 'bg-tiefblau' },
+  pruefen: { label: 'Prüfen', text: 'text-gelb', punkt: 'bg-[#e0a03a]' },
+  freigegeben: { label: 'Freigegeben', text: 'text-gruen', punkt: 'bg-gruen' },
 };
+
+function groesse(b: number | null | undefined) {
+  if (!b) return '';
+  return b < 1_000_000 ? `${Math.max(1, Math.round(b / 1000))} KB` : `${zahl(b / 1_000_000, 1)} MB`;
+}
 
 function artErkennen(name: string, modus: Props['modus']): Datei['art'] {
   const n = name.toLowerCase();
@@ -59,7 +65,35 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const [metaStand, setMetaStand] = useState('');
   const [abgleich, setAbgleich] = useState<Abgleich | null>(aStart);
   const [berichtOffen, setBerichtOffen] = useState(false);
+  const [vorschau, setVorschau] = useState<Record<string, string>>({});
+  const [liestId, setLiestId] = useState<string | null>(null);
   const dateiInput = useRef<HTMLInputElement>(null);
+
+  /** Vorschaubilder der Zeichnungen holen, fehlende einmal rendern lassen. */
+  async function vorschauLaden(liste: Datei[]) {
+    const z = liste.filter((d) => d.art === 'zeichnung' && /\.(pdf|png|jpe?g)$/i.test(d.name));
+    if (!z.length) return;
+    const { data } = await sb.storage.from('unterlagen').createSignedUrls(z.map((d) => vorschauPfad(d.pfad)), 3600);
+    const gefunden: Record<string, string> = {};
+    const fehlt: Datei[] = [];
+    z.forEach((d, i) => {
+      const u = data?.[i];
+      if (u?.signedUrl && !u.error) gefunden[d.id] = u.signedUrl;
+      else fehlt.push(d);
+    });
+    setVorschau((v) => ({ ...v, ...gefunden }));
+    for (const d of fehlt) {
+      const r = await fetch(`/api/zeichnung/${projekt.id}/vorschau`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id }) })
+        .then((x) => x.json())
+        .catch(() => ({}));
+      if (r.url) setVorschau((v) => ({ ...v, [d.id]: r.url }));
+    }
+  }
+
+  useEffect(() => {
+    if (modus === 'zeichnung') vorschauLaden(dStart);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const s = useMemo(() => summen(pos), [pos]);
   const zk = useMemo(() => {
@@ -207,6 +241,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       }
     }
     setLaeuft(null);
+    if (modus === 'zeichnung' && neu.length) void vorschauLaden(neu);
     return neu;
   }
 
@@ -241,7 +276,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
   async function dateiLoeschen(d: Datei) {
     if (!confirm(`${d.name} entfernen? Bereits gelesene Positionen bleiben erhalten.`)) return;
-    await sb.storage.from('unterlagen').remove([d.pfad]);
+    await sb.storage.from('unterlagen').remove([d.pfad, vorschauPfad(d.pfad)]);
     await sb.from('dateien').delete().eq('id', d.id);
     setDateien((l) => l.filter((x) => x.id !== d.id));
   }
@@ -311,6 +346,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     if (schon && !still && !confirm(`Aus dieser Zeichnung sind schon ${schon} Positionen gelesen. Neu lesen ersetzt sie samt Änderungen. Weiter?`)) return 0;
     let seite: number | null = 1;
     let neuGesamt = 0;
+    setLiestId(d.id);
     while (seite !== null) {
       setLaeuft(`Lese ${d.name}${seite > 1 ? `, Blatt ${seite}` : ''} … Stückliste, Bohrungen, Nähte (rund 30 bis 90 Sekunden je Blatt)`);
       let r: Response | null = null;
@@ -346,6 +382,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       if (j.seiten) setDateien((l) => l.map((x) => (x.id === d.id ? { ...x, seiten: j.seiten ?? x.seiten } : x)));
       await neuLaden();
     }
+    setLiestId(null);
     if (!still) {
       setLaeuft(null);
       if (neuGesamt) zeige(true, `${neuGesamt} Positionen aus ${d.name} gelesen und kalkuliert. Gelb markierte bitte prüfen.`);
@@ -442,8 +479,36 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
   return (
     <div className="space-y-6">
-      <ProjektKopf meta={meta} onMeta={metaSpeichern} art={modus === 'lv' ? 'Ausschreibung' : modus === 'zeichnung' ? 'Nach Zeichnung' : 'Treppe · Geländer · Stahlbau'} stand={<span className="text-[12px] text-hell">{metaStand}</span>} gesperrt={!darfSchreiben}>
-        <Link href={`/${modus}/${projekt.id}/angebot`} className="knopf-blau">Angebot ansehen</Link>
+      <ProjektKopf
+        meta={meta}
+        onMeta={metaSpeichern}
+        art={modus === 'lv' ? 'Ausschreibung' : modus === 'zeichnung' ? 'Nach Zeichnung' : 'Treppe, Geländer, Stahlbau'}
+        stand={<span className="text-[13px] text-hell">{metaStand}</span>}
+        gesperrt={!darfSchreiben}
+        kennzahlen={
+          <div className="grid grid-cols-2 lg:grid-cols-[1.7fr_1fr_1fr_1fr_1fr] gap-px bg-linie-stark">
+            <div className="col-span-2 lg:col-span-1 bg-tiefblau text-white px-5 py-4">
+              <span className="feldname text-white/60">Summe netto</span>
+              <div className="zahl breit text-[36px] font-bold leading-none mt-1.5">{euro(s.gesamt, true)}</div>
+              <div className="text-[13px] text-white/65 mt-2">davon freigegeben {euro(s.freigegeben, true)}</div>
+            </div>
+            {modus === 'zeichnung' ? (
+              <>
+                <Kz label="Stahlgewicht" wert={`${zahl(zk.kg, 0)} kg`} sub={`${s.anzahl} Positionen, ${zahl(zk.teile, 0)} Teile`} />
+                <Kz label="Fertigung" wert={`${zahl(zk.h, 1)} h`} sub={zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je Tonne` : 'aus den Arbeitsgängen'} />
+                <Kz label="Preis je kg" wert={zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–'} sub={s.pruefen ? `${s.pruefen} zu prüfen` : 'alles geprüft'} warn={s.pruefen > 0} />
+              </>
+            ) : (
+              <>
+                <Kz label="Positionen" wert={`${s.anzahl}`} sub={`${s.frei} freigegeben`} />
+                <Kz label="Zu prüfen" wert={`${s.pruefen}`} sub={s.offen ? `${s.offen} noch offen` : 'alle kalkuliert'} warn={s.pruefen > 0} />
+                <Kz label="Fremdgewerke" wert={`${s.fremd}`} sub="nicht in der Summe" />
+              </>
+            )}
+            <Kz label="KI-Kosten" wert={euro(kiKosten)} sub={`Budget ${euro(projekt.ki_budget_eur, true)}`} />
+          </div>
+        }
+      >
         <a href={`/api/projekt/${projekt.id}/excel`} className="knopf-zweit">Excel</a>
         {hatGaeb && (
           <a
@@ -458,103 +523,105 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             GAEB X84
           </a>
         )}
+        <Link href={`/${modus}/${projekt.id}/angebot`} className="knopf-primaer">Angebot ansehen</Link>
       </ProjektKopf>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="rounded-xl px-4 py-3 bg-tiefblau text-white">
-          <div className="text-[11px] uppercase tracking-wider text-white/60">Summe netto</div>
-          <div className="zahl text-[24px] font-semibold mt-1">{euro(s.gesamt, true)}</div>
-          <div className="text-[12px] text-white/60">davon freigegeben {euro(s.freigegeben, true)}</div>
-        </div>
-        {modus === 'zeichnung' ? (
-          <>
-            <Kz label="Stahlgewicht" wert={`${zahl(zk.kg, 0)} kg`} sub={`${s.anzahl} Positionen, ${zahl(zk.teile, 0)} Teile`} />
-            <Kz label="Fertigung" wert={`${zahl(zk.h, 1)} h`} sub={zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je t` : 'aus den Arbeitsgängen'} />
-            <Kz label="Preis je kg" wert={zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–'} sub={`${s.pruefen} zu prüfen`} warn={s.pruefen > 0} />
-          </>
-        ) : (
-          <>
-            <Kz label="Positionen" wert={`${s.anzahl}`} sub={`${s.frei} freigegeben`} />
-            <Kz label="Zu prüfen" wert={`${s.pruefen}`} sub={s.offen ? `${s.offen} noch offen` : 'alle kalkuliert'} warn={s.pruefen > 0} />
-            <Kz label="Fremdgewerke" wert={`${s.fremd}`} sub="nicht in der Summe" />
-          </>
-        )}
-        <Kz label="KI-Kosten" wert={euro(kiKosten)} sub={`Budget ${euro(projekt.ki_budget_eur, true)}`} />
-      </div>
-
-      {meldung && <div className={`rounded-xl px-4 py-3 text-sm ${meldung.ok ? 'bg-gruen-hell text-gruen' : 'bg-rot-hell text-rot'}`}>{meldung.text}</div>}
+      {meldung && <div role="status" className={`rounded-[6px] border-l-4 px-4 py-3 text-[14px] font-medium ${meldung.ok ? 'bg-gruen-hell border-gruen text-gruen' : 'bg-rot-hell border-rot text-rot'}`}>{meldung.text}</div>}
       {laeuft && (
-        <div className="rounded-xl px-4 py-3 text-sm bg-blau-hell text-tiefblau flex items-center gap-3">
-          <span className="w-4 h-4 rounded-full border-2 border-tiefblau border-t-transparent animate-spin" />
+        <div role="status" className="rounded-[6px] border-l-4 border-tiefblau px-4 py-3 text-[14px] bg-blau-hell text-tiefblau flex items-center gap-3">
+          <span className="w-4 h-4 shrink-0 rounded-full border-2 border-tiefblau border-t-transparent animate-spin" />
           {laeuft}
         </div>
       )}
 
       {modus === 'zeichnung' && (
         <section
-          className="karte p-4"
+          className="space-y-3"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
             if (e.dataTransfer.files.length) hochladen(e.dataTransfer.files);
           }}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-sm">Zeichnungen</h2>
-              <p className="text-[12px] text-grau">Werkstattzeichnungen als PDF, Scan oder Foto hier ablegen. AIM liest Stückliste, Bohrungen und Nähte und rechnet jede Position mit Ihren Kostenstellen.</p>
+              <h2 className="breit text-[19px] font-bold text-tiefblau">Zeichnungen</h2>
+              <p className="text-[14px] text-grau max-w-[68ch]">PDF, Scan oder Foto. AIM liest Stückliste, Bohrungen und Nähte und rechnet jede Position mit Ihren Kostenstellen.</p>
             </div>
             {darfSchreiben && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.PDF,.PNG,.JPG,.JPEG" onChange={(e) => e.target.files && hochladen(e.target.files)} />
-                <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>Zeichnungen wählen</button>
+                {dateien.length > 0 && <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>Zeichnungen hinzufügen</button>}
                 {dateien.some((d) => d.art === 'zeichnung' && !pos.some((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`))) && (
                   <button className="knopf-primaer" onClick={alleZeichnungenLesen} disabled={!!laeuft}>Alle lesen und kalkulieren</button>
                 )}
               </div>
             )}
           </div>
-          {dateien.length === 0 && (
-            <div className="mt-3 grid sm:grid-cols-[1fr_auto] gap-3">
-              <button className="rounded-lg border-2 border-dashed border-linie-stark py-8 text-sm text-grau hover:border-tiefblau hover:text-tinte" onClick={() => darfSchreiben && dateiInput.current?.click()}>
-                Zeichnungen hierher ziehen oder klicken. Mehrere Dateien auf einmal gehen.
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {dateien.map((d) => {
+              const aus = pos.filter((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`));
+              const n = aus.length;
+              const nummer = (aus[0]?.ansatz as { zeichnung?: string } | null)?.zeichnung;
+              const liest = liestId === d.id;
+              return (
+                <article key={d.id} className="bg-flaeche border border-linie rounded-[6px] overflow-hidden flex flex-col">
+                  <button type="button" className={`relative aspect-[1.414] border-b border-linie bg-white ${liest ? 'abtasten' : ''}`} onClick={() => dateiOeffnen(d)} title="Zeichnung öffnen">
+                    {vorschau[d.id] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={vorschau[d.id]} alt={`Vorschau ${d.name}`} className="absolute inset-0 w-full h-full object-contain p-1.5" />
+                    ) : (
+                      <BlattPlatzhalter />
+                    )}
+                    {n > 0 && <span className="absolute top-2 left-2 marke bg-tiefblau text-white">{n} {n === 1 ? 'Position' : 'Positionen'}</span>}
+                  </button>
+                  <div className="p-3 flex-1 flex flex-col gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-semibold text-tinte truncate">{nummer ?? d.name}</div>
+                      <div className="text-[12px] text-hell truncate">{nummer ? `${d.name}, ` : ''}{groesse(d.groesse)}{d.seiten ? `, ${d.seiten} ${d.seiten === 1 ? 'Blatt' : 'Blätter'}` : ''}</div>
+                    </div>
+                    <div className="mt-auto flex items-center gap-1">
+                      <span className={`text-[13px] font-semibold ${liest ? 'text-rot' : n ? 'text-gruen' : 'text-hell'}`}>{liest ? 'Wird gelesen …' : n ? 'Gelesen' : 'Noch nicht gelesen'}</span>
+                      <span className="ml-auto" />
+                      {darfSchreiben && d.art === 'zeichnung' && !liest && (
+                        <button className={n ? 'knopf-leise knopf-klein' : 'knopf-blau knopf-klein'} disabled={!!laeuft} onClick={() => zeichnungLesen(d)}>{n ? 'Neu lesen' : 'Lesen'}</button>
+                      )}
+                      {darfSchreiben && !liest && <button className="knopf-leise knopf-klein" disabled={!!laeuft} onClick={() => dateiLoeschen(d)} aria-label={`${d.name} entfernen`}>Entfernen</button>}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+            {darfSchreiben && (
+              <button
+                type="button"
+                className="raster rounded-[6px] border-[1.5px] border-dashed border-tusche/50 hover:border-tiefblau min-h-[220px] flex flex-col items-center justify-center gap-2 p-6 text-center transition-colors"
+                onClick={() => dateiInput.current?.click()}
+                disabled={!!laeuft}
+              >
+                <span className="ballon text-[16px]">+</span>
+                <span className="text-[15px] font-semibold text-tiefblau">Zeichnungen ablegen</span>
+                <span className="text-[13px] text-grau">Hierher ziehen oder klicken.<br />Mehrere Dateien auf einmal gehen.</span>
               </button>
-              {darfSchreiben && (
-                <button className="rounded-lg border border-linie-stark px-6 py-4 text-sm hover:border-tiefblau text-left" disabled={!!laeuft} onClick={beispieleLaden}>
-                  <div className="font-medium">Mit Beispielzeichnungen ausprobieren</div>
-                  <div className="text-[12px] text-grau">Stütze, Träger, Konsole, rund 2 Minuten</div>
-                </button>
-              )}
-            </div>
-          )}
-          {dateien.length > 0 && (
-            <div className="overflow-x-auto mt-3">
-              <table className="tabelle">
-                <tbody>
-                  {dateien.map((d) => {
-                    const n = pos.filter((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`)).length;
-                    return (
-                      <tr key={d.id}>
-                        <td>
-                          <button className="text-left hover:text-rot font-medium text-[13px]" onClick={() => dateiOeffnen(d)}>{d.name}</button>
-                          <div className="text-[11px] text-hell">{d.groesse ? `${zahl(d.groesse / 1_000_000, 1)} MB` : ''}{d.seiten ? ` · ${d.seiten} ${d.seiten === 1 ? 'Blatt' : 'Blätter'}` : ''}{n ? ` · ${n} Positionen gelesen` : ''}</div>
-                        </td>
-                        <td className="w-64 text-right whitespace-nowrap">
-                          {darfSchreiben && d.art === 'zeichnung' && (
-                            <button className={n ? 'knopf-leise knopf-klein' : 'knopf-blau knopf-klein'} disabled={!!laeuft} onClick={() => zeichnungLesen(d)}>{n ? 'Neu lesen' : 'Lesen und kalkulieren'}</button>
-                          )}
-                          {darfSchreiben && <button className="knopf-leise knopf-klein" onClick={() => dateiLoeschen(d)}>Entfernen</button>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+            )}
+            {darfSchreiben && dateien.length === 0 && (
+              <button
+                type="button"
+                className="rounded-[6px] bg-tiefblau text-white min-h-[220px] flex flex-col justify-between p-5 text-left hover:bg-tiefblau-2 transition-colors"
+                disabled={!!laeuft}
+                onClick={beispieleLaden}
+              >
+                <span className="text-[13px] text-white/60 schmal">Keine Zeichnung zur Hand?</span>
+                <span>
+                  <span className="block breit text-[20px] font-bold leading-tight">Mit Beispielzeichnungen ausprobieren</span>
+                  <span className="block text-[14px] text-white/70 mt-2">Stütze, Träger und Konsole. AIM liest alle drei und kalkuliert, in rund zwei Minuten.</span>
+                </span>
+              </button>
+            )}
+          </div>
           {hinweise.length > 0 && (
-            <details className="mt-3 rounded-lg bg-papier px-3 py-2">
-              <summary className="text-sm cursor-pointer font-medium">Hinweise aus den Zeichnungen ({hinweise.length})</summary>
+            <details className="rounded-[6px] border border-linie bg-flaeche px-4 py-2.5">
+              <summary className="text-[14px] cursor-pointer font-semibold text-tiefblau">Hinweise aus den Zeichnungen ({hinweise.length})</summary>
               <ul className="mt-2 list-disc pl-5 text-[13px] text-grau space-y-0.5">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </details>
           )}
@@ -642,7 +709,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             <div className="space-y-3">
               {abgleich && (
                 <div className="rounded-lg border border-linie p-3 space-y-2 text-[13px]">
-                  <div className="text-[11px] uppercase tracking-wider text-tiefblau font-medium">Plan gegen LV · {abgleich.plaene.join(', ')}</div>
+                  <div className="text-[12px] font-medium schmal text-tiefblau font-medium">Plan gegen LV · {abgleich.plaene.join(', ')}</div>
                   <p>{abgleich.zusammenfassung}</p>
                   {abgleich.fehlt_im_lv.length > 0 && (
                     <div><div className="font-medium">Auf den Plänen, aber ohne LV-Position</div>
@@ -676,9 +743,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         </section>
       )}
 
-      <section className="karte overflow-hidden">
+      <section className="space-y-3">
+        {modus === 'zeichnung' && <h2 className="breit text-[19px] font-bold text-tiefblau">Positionen</h2>}
+        <div className="karte overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-linie">
-          <div className="flex rounded-lg border border-linie-stark p-0.5 bg-papier text-[13px]">
+          <div className="flex rounded-[6px] border border-linie-stark overflow-hidden text-[13px]">
             {(
               [
                 ['alle', `Alle ${pos.length}`],
@@ -688,7 +757,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 ['fremd', `Fremd ${s.fremd}`],
               ] as [Filter, string][]
             ).map(([f, l]) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 h-7 rounded-md whitespace-nowrap ${filter === f ? 'bg-flaeche shadow-sm font-medium' : 'text-grau'}`}>{l}</button>
+              <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 whitespace-nowrap border-l border-linie first:border-l-0 ${filter === f ? 'bg-tiefblau text-white font-semibold' : 'text-grau hover:text-tiefblau bg-flaeche'}`}>{l}</button>
             ))}
           </div>
           <label className="flex items-center gap-1.5 text-[13px] text-grau ml-2"><input type="checkbox" checked={unsicherZuerst} onChange={(e) => setUnsicherZuerst(e.target.checked)} /> unsichere zuerst</label>
@@ -727,11 +796,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             <table className="tabelle">
               <thead>
                 <tr>
-                  <th className="w-24">OZ</th>
-                  <th>Kurztext</th>
+                  <th className="w-24">{modus === 'lv' ? 'OZ' : 'Pos.'}</th>
+                  <th>Bezeichnung</th>
                   <th className="text-right w-24">Menge</th>
                   <th className="w-12">Einh.</th>
-                  <th className="w-36">Ansatz</th>
+                  {modus !== 'zeichnung' && <th className="w-36">Ansatz</th>}
                   <th className="text-right w-28">EP</th>
                   <th className="text-right w-32">GP</th>
                   <th className="w-28">Status</th>
@@ -741,26 +810,26 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 {sichtbar.map((p) => {
                   const fremd = p.typ === 'fremd' || p.ansatz?.ausgeblendet;
                   return (
-                    <tr key={p.id} className={`cursor-pointer hover:bg-papier/70 ${fremd ? 'opacity-50' : ''} ${offenId === p.id ? 'bg-blau-hell/50' : ''}`} onClick={() => setOffenId(p.id)}>
-                      <td className="zahl text-[12px] whitespace-nowrap">{p.oz}</td>
+                    <tr key={p.id} className={`cursor-pointer hover:bg-blau-hell/40 ${fremd ? 'opacity-50' : ''} ${offenId === p.id ? 'bg-blau-hell/60' : ''}`} onClick={() => setOffenId(p.id)}>
+                      <td className="whitespace-nowrap">{modus === 'lv' ? <span className="zahl text-[13px] text-grau">{p.oz}</span> : <span className="ballon">{p.oz}</span>}</td>
                       <td>
-                        <div className="text-[13px] font-medium line-clamp-2">{p.kurztext}</div>
-                        <div className="text-[11px] text-hell flex flex-wrap gap-x-2">
+                        <div className="text-[14px] font-semibold text-tinte line-clamp-2">{p.kurztext}</div>
+                        <div className="text-[12px] text-hell flex flex-wrap gap-x-2 mt-0.5">
                           {p.ansatz?.bereich && <span className="truncate max-w-[340px]">{p.ansatz.bereich}</span>}
                           {p.ansatz?.art === 'baugruppe' && <BaugruppeKurz p={p} stamm={stamm} />}
                           {p.ansatz?.bedarf && <span className="text-gelb">Bedarfsposition</span>}
                           {p.ansatz?.alternativ && <span className="text-gelb">Alternative</span>}
                         </div>
                       </td>
-                      <td className="text-right zahl text-[13px] whitespace-nowrap">{zahl(p.menge, 3)}</td>
-                      <td className="text-[12px] text-grau">{p.einheit}</td>
-                      <td className="text-[12px] text-grau">{fremd ? 'Fremdgewerk' : p.ansatz?.art ? ART_LABEL[p.ansatz.art] : '–'}{p.ansatz?.ep_hand !== undefined && p.ansatz?.ep_hand !== null ? ' · Hand' : ''}</td>
-                      <td className="text-right zahl text-[13px] whitespace-nowrap">{euro(p.ep)}</td>
-                      <td className="text-right zahl text-[13px] whitespace-nowrap">{euro(p.gp)}</td>
+                      <td className="text-right zahl text-[14px] whitespace-nowrap">{zahl(p.menge, 3)}</td>
+                      <td className="text-[13px] text-grau">{p.einheit}</td>
+                      {modus !== 'zeichnung' && <td className="text-[13px] text-grau">{fremd ? 'Fremdgewerk' : p.ansatz?.art ? ART_LABEL[p.ansatz.art] : '–'}{p.ansatz?.ep_hand !== undefined && p.ansatz?.ep_hand !== null ? ', von Hand' : ''}</td>}
+                      <td className="text-right zahl text-[14px] whitespace-nowrap">{euro(p.ep)}</td>
+                      <td className="text-right zahl text-[14px] font-semibold whitespace-nowrap">{euro(p.gp)}</td>
                       <td>
-                        <span className={`marke ${STATUS[p.status].klasse}`}>{STATUS[p.status].label}</span>
+                        <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${STATUS[p.status].text}`}><span className={`w-2 h-2 rounded-full ${STATUS[p.status].punkt}`} />{STATUS[p.status].label}</span>
                         {pruefePosition(p).some((f) => f.stufe === 'warnung') && <span className="ml-1 text-gelb" title={pruefePosition(p).map((f) => f.text).join(' ')}>⚠</span>}
-                        {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="text-[10px] text-hell mt-0.5">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
+                        {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="text-[12px] text-hell mt-0.5">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
                       </td>
                     </tr>
                   );
@@ -769,6 +838,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             </table>
           </div>
         )}
+        </div>
       </section>
 
       {offen && (
@@ -802,11 +872,24 @@ function BaugruppeKurz({ p, stamm }: { p: Position; stamm: Stammdaten }) {
 
 function Kz({ label, wert, sub, warn = false }: { label: string; wert: string; sub?: string; warn?: boolean }) {
   return (
-    <div className={`rounded-xl px-4 py-3 border ${warn ? 'bg-gelb-hell border-gelb/30' : 'karte'}`}>
-      <div className="text-[11px] uppercase tracking-wider text-hell">{label}</div>
-      <div className="zahl text-[20px] font-semibold mt-1">{wert}</div>
-      {sub && <div className="text-[12px] text-grau">{sub}</div>}
+    <div className={`px-4 py-4 ${warn ? 'bg-gelb-hell' : 'bg-flaeche'}`}>
+      <span className="feldname">{label}</span>
+      <div className="zahl text-[23px] font-semibold leading-tight mt-1 text-tiefblau">{wert}</div>
+      {sub && <div className={`text-[13px] mt-1 ${warn ? 'text-gelb font-semibold' : 'text-grau'}`}>{sub}</div>}
     </div>
+  );
+}
+
+/** Leeres Zeichnungsblatt mit Rahmen und Schriftfeld, solange es noch kein Vorschaubild gibt. */
+function BlattPlatzhalter() {
+  return (
+    <svg className="absolute inset-0 w-full h-full raster" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet" aria-hidden>
+      <rect x="10" y="8" width="277" height="194" fill="none" stroke="#2a4a6b" strokeWidth="0.8" />
+      <rect x="187" y="167" width="100" height="35" fill="#fff" stroke="#2a4a6b" strokeWidth="0.8" />
+      <path d="M187 179 H287 M187 191 H287 M227 167 V202" stroke="#2a4a6b" strokeWidth="0.5" />
+      <path d="M60 60 V150 M48 60 H72 M48 150 H72" stroke="#7d8b99" strokeWidth="1.4" />
+      <path d="M100 120 H170" stroke="#7d8b99" strokeWidth="1.4" />
+    </svg>
   );
 }
 
@@ -857,8 +940,8 @@ function PositionsDetail({
     <div className="fixed inset-0 z-40 flex justify-end bg-tinte/20" onClick={onSchliessen}>
       <aside className="h-full w-full max-w-[560px] bg-flaeche shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-flaeche border-b border-linie px-5 py-3 flex items-center gap-3 z-10">
-          <span className="zahl text-[12px] text-grau">{p.oz}</span>
-          <span className="font-semibold truncate">{p.kurztext}</span>
+          <span className={modus === 'lv' ? 'zahl text-[13px] text-grau' : 'ballon'}>{p.oz}</span>
+          <span className="font-semibold text-tiefblau truncate">{p.kurztext}</span>
           <button className="ml-auto knopf-leise knopf-klein" onClick={onSchliessen} aria-label="Schließen">✕</button>
         </div>
         <div className="p-5 space-y-5">
@@ -882,7 +965,7 @@ function PositionsDetail({
 
           {p.begruendung && (
             <div className="rounded-lg border border-tiefblau/20 bg-blau-hell/50 p-3">
-              <div className="text-[11px] uppercase tracking-wider text-tiefblau font-medium mb-1">Vorschlag der KI {p.sicherheit !== null ? `· Sicherheit ${Math.round((p.sicherheit ?? 0) * 100)} %` : ''}</div>
+              <div className="text-[12px] font-medium schmal text-tiefblau font-medium mb-1">Vorschlag der KI {p.sicherheit !== null ? `· Sicherheit ${Math.round((p.sicherheit ?? 0) * 100)} %` : ''}</div>
               <p className="text-[13px] leading-relaxed">{p.begruendung}</p>
             </div>
           )}
@@ -902,7 +985,7 @@ function PositionsDetail({
           <AnsatzEditor ansatz={ansatz} onAnsatz={setAnsatz} />
 
           <div className="rounded-lg border border-linie">
-            <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-hell border-b border-linie">Rechenweg je Einheit</div>
+            <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie">Rechenweg je Einheit</div>
             {istBe ? (
               <p className="px-3 py-2 text-[13px] text-grau">Prozentsatz der übrigen Summe, wird nach dem Speichern aktualisiert.</p>
             ) : vorschau.bausteine.length ? (
@@ -970,9 +1053,9 @@ function ArchivListe({ p, onUebernehmen, darfSchreiben }: { p: Position; onUeber
   }
   return (
     <div className="rounded-lg border border-linie">
-      <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-hell border-b border-linie flex items-center">
+      <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie flex items-center">
         Ähnlich aus Ihren Angeboten
-        {!treffer && <button className="ml-auto knopf-leise knopf-klein normal-case tracking-normal" onClick={suchen} disabled={laedt}>{laedt ? 'Suche …' : 'Archiv durchsuchen'}</button>}
+        {!treffer && <button className="ml-auto knopf-leise knopf-klein" onClick={suchen} disabled={laedt}>{laedt ? 'Suche …' : 'Archiv durchsuchen'}</button>}
       </div>
       {treffer && treffer.length === 0 && <p className="px-3 py-2 text-[13px] text-grau">Keine ähnliche Position im Archiv.</p>}
       {treffer && treffer.length > 0 && (

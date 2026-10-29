@@ -1,60 +1,84 @@
 @import "tailwindcss";
+@import "@fontsource-variable/archivo/wdth.css";
 
+/*
+  AIM, Gestaltung nach der Werkstattzeichnung:
+  kühles Zeichenpapier, Tiefblau als Tusche für Rahmen und Schriftfelder,
+  Rot nur für Handlungen. Eine Schrift (Archivo) in drei Breiten:
+  breit für Kopfzeilen und Summen, normal für Text, schmal für Feldbezeichnungen.
+*/
 @theme {
-  --color-papier: #f5f5f1;
+  --color-papier: #eef1f4;
+  --color-papier-2: #e4e9ee;
   --color-flaeche: #ffffff;
-  --color-tinte: #14171c;
-  --color-grau: #5c6370;
-  --color-hell: #8d939d;
-  --color-linie: #e2e2dc;
-  --color-linie-stark: #cfcfc7;
+  --color-tinte: #102033;
+  --color-grau: #4f6072;
+  --color-hell: #7d8b99;
+  --color-linie: #d6dde4;
+  --color-linie-stark: #b8c3ce;
   --color-tiefblau: #0e2840;
-  --color-tiefblau-2: #173a5c;
+  --color-tiefblau-2: #1b3d5e;
+  --color-tusche: #2a4a6b;
   --color-rot: #c5301f;
   --color-rot-dunkel: #a3271a;
-  --color-gruen: #2c7a4b;
-  --color-gruen-hell: #e7f3ec;
-  --color-gelb: #a86a12;
-  --color-gelb-hell: #fbf1de;
-  --color-rot-hell: #fbe9e6;
-  --color-blau-hell: #e8eef5;
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-gruen: #24734a;
+  --color-gruen-hell: #e3f1e9;
+  --color-gelb: #9a5b0b;
+  --color-gelb-hell: #fdf0d5;
+  --color-rot-hell: #fbe7e4;
+  --color-blau-hell: #e3ebf4;
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --radius-blatt: 6px;
 }
 
 html { -webkit-text-size-adjust: 100%; }
-body { background: var(--color-papier); color: var(--color-tinte); font-family: var(--font-sans); font-feature-settings: "ss01", "cv11"; }
-.zahl { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+body {
+  background: var(--color-papier);
+  color: var(--color-tinte);
+  font-family: var(--font-sans);
+  font-stretch: 100%;
+  font-feature-settings: "tnum" 0;
+}
+::selection { background: color-mix(in srgb, var(--color-tiefblau) 18%, transparent); }
+:focus-visible { outline: 2px solid var(--color-tiefblau); outline-offset: 2px; }
+
+/* Zahlen: gleiche Ziffernbreite, damit Spalten sauber untereinander stehen */
+.zahl { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.005em; }
+/* Breite Auszeichnung für Titel und Summen, schmale für Feldbezeichnungen */
+.breit { font-stretch: 118%; letter-spacing: -0.015em; }
+.schmal { font-stretch: 82%; }
 
 @utility knopf {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 h-10 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap cursor-pointer;
+  @apply inline-flex items-center justify-center gap-2 rounded-[6px] px-4 h-10 text-[14px] font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap cursor-pointer;
 }
 @utility knopf-primaer {
   @apply knopf bg-rot text-white hover:bg-rot-dunkel;
 }
 @utility knopf-zweit {
-  @apply knopf bg-flaeche text-tinte border border-linie-stark hover:bg-papier;
+  @apply knopf bg-flaeche text-tiefblau border border-linie-stark hover:border-tiefblau;
 }
 @utility knopf-blau {
   @apply knopf bg-tiefblau text-white hover:bg-tiefblau-2;
 }
 @utility knopf-leise {
-  @apply knopf text-grau hover:text-tinte hover:bg-papier;
+  @apply knopf font-medium text-grau hover:text-tiefblau hover:bg-papier;
 }
 @utility knopf-klein {
   @apply h-8 px-3 text-[13px];
 }
 @utility karte {
-  @apply bg-flaeche border border-linie rounded-xl;
+  @apply bg-flaeche border border-linie rounded-[6px];
 }
 @utility eingabe {
-  @apply w-full h-10 rounded-lg border border-linie-stark bg-flaeche px-3 text-sm outline-none focus:border-tiefblau focus:ring-2 focus:ring-tiefblau/15 disabled:bg-papier disabled:text-grau;
+  @apply w-full h-10 rounded-[5px] border border-linie-stark bg-flaeche px-3 text-[14px] outline-none focus:border-tiefblau focus:ring-2 focus:ring-tiefblau/15 disabled:bg-papier disabled:text-grau;
 }
 @utility eingabe-klein {
-  @apply h-8 px-2 text-[13px] rounded-md;
+  @apply h-8 px-2 text-[13px] rounded-[4px];
 }
 @utility label {
-  @apply block text-[11px] font-medium text-grau mb-1.5 uppercase tracking-wide;
+  @apply block text-[12px] font-medium text-grau mb-1.5;
+  font-stretch: 85%;
 }
 @utility marke {
   @apply inline-flex items-center gap-1 rounded-full px-2.5 h-6 text-[12px] font-medium whitespace-nowrap;
@@ -62,9 +86,27 @@ body { background: var(--color-papier); color: var(--color-tinte); font-family: 
 
 @layer components {
   .tabelle { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
-  .tabelle th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-grau); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-linie); background: color-mix(in srgb, var(--color-papier) 60%, transparent); white-space: nowrap; }
-  .tabelle td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-linie); vertical-align: top; }
+  .tabelle th { text-align: left; font-size: 12px; font-stretch: 85%; color: var(--color-grau); font-weight: 600; padding: 0.6rem 0.75rem; border-bottom: 1.5px solid var(--color-tiefblau); white-space: nowrap; }
+  .tabelle td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-linie); vertical-align: top; }
   .tabelle tbody tr:last-child td { border-bottom: 0; }
+
+  /* Schriftfeld: Rahmen in Tusche, Felder durch Haarlinien getrennt, wie unten rechts auf jeder Werkstattzeichnung */
+  .schriftfeld { background: var(--color-flaeche); border: 1.5px solid var(--color-tiefblau); border-radius: var(--radius-blatt); overflow: hidden; }
+  .schriftfeld-zelle { padding: 0.6rem 0.9rem 0.7rem; min-width: 0; }
+  .schriftfeld-zelle + .schriftfeld-zelle { border-left: 1px solid var(--color-linie-stark); }
+  .feldname { display: block; font-size: 12px; font-stretch: 85%; font-weight: 500; color: var(--color-hell); line-height: 1.2; margin-bottom: 0.2rem; }
+
+  /* Positionsballon wie auf der Zeichnung */
+  .ballon { display: inline-grid; place-items: center; min-width: 2rem; height: 2rem; padding: 0 0.45rem; border: 1.5px solid var(--color-tiefblau); border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--color-tiefblau); background: var(--color-flaeche); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* Lesen läuft: Abtastlinie fährt über das Blatt */
+  .abtasten { position: relative; overflow: hidden; }
+  .abtasten::after { content: ""; position: absolute; left: 0; right: 0; height: 28%; top: -28%; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-rot) 22%, transparent) 85%, var(--color-rot) 100%); animation: abtasten 2.4s cubic-bezier(.45,0,.55,1) infinite; }
+  @keyframes abtasten { to { top: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .abtasten::after { animation: none; top: auto; bottom: 0; height: 3px; background: var(--color-rot); } }
+
+  /* Kariertes Zeichenpapier für leere Flächen */
+  .raster { background-color: var(--color-flaeche); background-image: linear-gradient(var(--color-papier-2) 1px, transparent 1px), linear-gradient(90deg, var(--color-papier-2) 1px, transparent 1px); background-size: 16px 16px; }
 }
 
 @media print {
