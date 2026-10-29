@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CircleCheck, Download, FileStack, FileText, MoreHorizontal, RefreshCw, ScanLine, Trash2, TriangleAlert, Upload } from 'lucide-react';
+import { CircleCheck, Download, FileText, Maximize2, MoreHorizontal, RefreshCw, ScanLine, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { Stammdaten } from '@/lib/engine/stammdaten';
 import type { Ansatz } from '@/lib/engine/bauteile';
@@ -10,21 +10,25 @@ import { euro, zahl } from '@/lib/format';
 import { ProjektKopf, type ProjektMeta } from '@/components/ProjektKopf';
 import { ZahlFeld } from '@/components/Felder';
 import { AnsatzEditor, standardAnsatz } from './AnsatzEditor';
-import { mitPreisen, preis, summen, zaehlt, type Datei, type Position, type AnsatzGespeichert, type Abgleich, type ArchivTreffer } from './typen';
+import { mitPreisen, preis, summen, zaehlt, type Datei, type Position, type AnsatzGespeichert, type Abgleich, type ArchivTreffer, type Pruefung } from './typen';
 import { pruefbericht, pruefePosition } from '@/lib/pruefung';
 import { baugruppeRechnen, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
+import { losStaffel } from '@/lib/engine/staffel';
 import { vorschauPfad } from '@/lib/vorschau';
 import { AmpelLegende, SicherheitsAmpel, schnitt, sicherheitVon } from './Ampel';
+import { Pruefbericht } from './Pruefbericht';
+import { LiveAnsicht, type LiveEreignis, type LivePhase, type LiveZustand } from './LiveAnsicht';
+import { stahlJeKg } from '@/lib/engine/bauteile';
 
 type Props = {
   modus: 'lv' | 'bauteil' | 'zeichnung';
-  projekt: ProjektMeta & { ki_budget_eur: number };
+  projekt: ProjektMeta;
   positionen: Position[];
   dateien: Datei[];
   hinweise: string[];
   abgleich?: Abgleich | null;
+  pruefung?: Pruefung | null;
   stamm: Stammdaten;
-  kiKosten: number;
   darfSchreiben: boolean;
 };
 
@@ -46,7 +50,7 @@ function artErkennen(name: string, modus: Props['modus']): Datei['art'] {
   return 'sonstiges';
 }
 
-export function PositionsEditor({ modus, projekt, positionen: start, dateien: dStart, hinweise, abgleich: aStart = null, stamm, kiKosten: kStart, darfSchreiben }: Props) {
+export function PositionsEditor({ modus, projekt, positionen: start, dateien: dStart, hinweise: hStart, abgleich: aStart = null, pruefung: pStart = null, stamm, darfSchreiben }: Props) {
   const sb = supabaseBrowser();
   const [meta, setMeta] = useState<ProjektMeta>(projekt);
   const [pos, setPos] = useState<Position[]>(() => mitPreisen(start, stamm));
@@ -56,15 +60,69 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const [offenId, setOffenId] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
-  const [kiKosten, setKiKosten] = useState(kStart);
   const [mitPlaenen, setMitPlaenen] = useState(false);
   const [metaStand, setMetaStand] = useState('');
   const [abgleich, setAbgleich] = useState<Abgleich | null>(aStart);
-  const [berichtOffen, setBerichtOffen] = useState(false);
+  const [pruefung, setPruefung] = useState<Pruefung | null>(pStart);
+  const [hinweise, setHinweise] = useState<string[]>(hStart);
+  const [pruefLaeuft, setPruefLaeuft] = useState(false);
+  const [abgleichLaeuft, setAbgleichLaeuft] = useState(false);
+  const [live, setLive] = useState<LiveZustand | null>(null);
+  const [liveOffen, setLiveOffen] = useState(false);
+  const liveNr = useRef(0);
   const [vorschau, setVorschau] = useState<Record<string, string>>({});
   const [liestId, setLiestId] = useState<string | null>(null);
   const [schritt, setSchritt] = useState<string | null>(null);
   const dateiInput = useRef<HTMLInputElement>(null);
+
+  /** Live-Ansicht: neuer Lauf, neuer Schritt, neuer Eintrag. Nur echte Ergebnisse landen im Protokoll. */
+  function liveBeginnen(titel: string, phase: LivePhase) {
+    const t = Date.now();
+    setLive({ phase, titel, start: t, beginn: t, laeuft: true, ereignisse: [], bild: null, datei: null, blatt: null, blaetter: null, ende: null });
+  }
+  function liveSchritt(patch: Partial<LiveZustand> & { titel: string; phase: LivePhase }) {
+    setLive((l) => (l ? { ...l, ...patch, start: Date.now(), laeuft: true } : { start: Date.now(), beginn: Date.now(), laeuft: true, ereignisse: [], ...patch }));
+  }
+  function liveLog(e: Omit<LiveEreignis, 'id' | 'zeit'>) {
+    liveNr.current += 1;
+    const neu: LiveEreignis = { ...e, id: liveNr.current, zeit: Date.now() };
+    setLive((l) => (l ? { ...l, ereignisse: [...l.ereignisse, neu].slice(-300) } : l));
+  }
+  function liveEnde(titel?: string) {
+    setLive((l) => (l ? { ...l, laeuft: false, phase: 'fertig', titel: titel ?? l.titel, ende: Date.now() } : l));
+  }
+  /** Bild des Blatts, das gerade gelesen wird (wird bei Bedarf einmal gerendert). */
+  async function liveBild(d: Datei, seite: number) {
+    if (!/\.(pdf|png|jpe?g)$/i.test(d.name)) return;
+    if (seite === 1 && vorschau[d.id]) {
+      setLive((l) => (l ? { ...l, bild: vorschau[d.id] } : l));
+      return;
+    }
+    const r = await fetch(`/api/zeichnung/${projekt.id}/vorschau`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id, seite }) })
+      .then((x) => x.json())
+      .catch(() => ({}));
+    if (r.url) setLive((l) => (l && l.datei === d.name && (l.blatt ?? 1) === seite ? { ...l, bild: r.url } : l));
+  }
+  const logPosition = (p: { oz?: string | null; kurztext?: string | null; menge?: number | null; einheit?: string | null; gp?: number | null; ep?: number | null; sicherheit?: number | null; begruendung?: string | null }) =>
+    liveLog({
+      art: 'position',
+      oz: p.oz ?? null,
+      titel: p.kurztext ?? '',
+      menge: p.menge !== null && p.menge !== undefined ? `${zahl(p.menge, 3)} ${p.einheit ?? ''}`.trim() : undefined,
+      wert: p.gp !== null && p.gp !== undefined ? euro(p.gp) : p.ep !== null && p.ep !== undefined ? euro(p.ep) : undefined,
+      sicherheit: p.sicherheit ?? undefined,
+      text: p.begruendung ?? undefined,
+    });
+
+  /** AIM hat das Projekt aus den Unterlagen benannt: Kopf aktualisieren, ohne die anderen Felder zu verlieren. */
+  function benannt(b: { titel?: string; kunde?: string; ort?: string } | null | undefined) {
+    if (!b || !Object.keys(b).length) return;
+    setMeta((m) => ({ ...m, ...b }));
+    if (b.titel) liveLog({ art: 'info', titel: `Projekt benannt: ${b.titel}`, text: [b.kunde, b.ort].filter(Boolean).join(', ') || undefined });
+  }
+  useEffect(() => {
+    document.title = `${meta.titel} · Angebote in Minuten`;
+  }, [meta.titel]);
 
   /** Vorschaubilder der Zeichnungen holen, fehlende einmal rendern lassen. */
   async function vorschauLaden(liste: Datei[]) {
@@ -98,7 +156,17 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     let h = 0;
     let teile = 0;
     for (const p of pos) {
-      if (p.ansatz?.art !== 'baugruppe' || !zaehlt(p)) continue;
+      if (!zaehlt(p)) continue;
+      // Zusammenbauzeichnung ohne Einzelteile: über das geschätzte Gewicht
+      if (p.ansatz?.art === 'stahl_kg') {
+        const a = p.ansatz as unknown as { kg_je_einheit?: number; oberflaeche?: 'roh'; montage?: boolean; blech?: boolean };
+        const m = Number(p.menge ?? 1) || 1;
+        const kgP = Number(a.kg_je_einheit ?? 0) * m;
+        kg += kgP;
+        h += stahlJeKg({ kg_gesamt: Math.max(kgP, 1), oberflaeche: a.oberflaeche ?? 'roh', montage: !!a.montage, blech: a.blech }, stamm).h_je_einheit! * kgP;
+        continue;
+      }
+      if (p.ansatz?.art !== 'baugruppe') continue;
       const r = baugruppeRechnen(p.ansatz as unknown as BaugruppeAnsatz, stamm);
       const m = Number(p.menge ?? 1) || 1;
       kg += r.kennzahlen.kg * m;
@@ -108,6 +176,12 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     return { kg, h, teile };
   }, [pos, stamm]);
   const bericht = useMemo(() => pruefbericht(pos), [pos]);
+
+  /**
+   * Losgrößen-Staffel für Serienteile: Der kalkulierte Preis gilt für einen Satz. Die Rüstzeit je Zeichnung
+   * (Stammdaten) fällt einmal je Los an und verteilt sich bei 10 und 50 Sätzen auf alle Stück.
+   */
+  const staffel = useMemo(() => (modus === 'zeichnung' ? losStaffel(pos, stamm) : null), [modus, pos, stamm]);
   const hatGaeb = pos.some((p) => p.quelle?.startsWith('gaeb:'));
 
   const sichtbar = useMemo(() => {
@@ -119,6 +193,8 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     if (unsicherZuerst) l = [...l].sort((a, b) => sicherheitVon(a) - sicherheitVon(b));
     return l;
   }, [pos, filter, unsicherZuerst]);
+
+  const liveSchliessen = useCallback(() => setLiveOffen(false), []);
 
   const zeige = (ok: boolean, text: string) => {
     setMeldung({ ok, text });
@@ -181,20 +257,94 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     await speichereZeilen(neu.filter((p) => ids.includes(p.id)), neu);
   }
 
-  async function planAbgleich() {
-    setLaeuft('Pläne werden gegen das LV geprüft … (dauert bis zu zwei Minuten)');
+  /**
+   * Wartet auf ein Ergebnis in projekte.ergebnis, falls die Verbindung abreißt. Der Server rechnet meist fertig.
+   */
+  async function ergebnisAbwarten<T extends { datum: string }>(schluessel: 'pruefung' | 'abgleich', seit: number): Promise<T | null> {
+    return warte(async () => {
+      const { data } = await sb.from('projekte').select('ergebnis').eq('id', projekt.id).single();
+      const e = data?.ergebnis?.[schluessel] as T | undefined;
+      return e && new Date(e.datum).getTime() >= seit - 5000 ? e : null;
+    });
+  }
+
+  /** Vorbemerkungen prüfen: Hinweise mit Ampel, Bieterfragen, Projektname. */
+  async function pruefen(still = false): Promise<Pruefung | null> {
+    setPruefLaeuft(true);
+    const seit = Date.now();
+    let ergebnis: Pruefung | null = null;
     try {
-      const r = await fetch(`/api/lv/${projekt.id}/abgleich`, { method: 'POST' });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok && j.abgleich) {
-        setAbgleich(j.abgleich);
-        setBerichtOffen(true);
-        zeige(true, 'Abgleich fertig. Ergebnis im Prüfbericht.');
-      } else zeige(false, j.fehler ?? 'Der Abgleich hat nicht geklappt. Bitte erneut versuchen.');
-    } catch {
-      zeige(false, 'Verbindung unterbrochen. Bitte erneut versuchen.');
+      const r = await fetch(`/api/lv/${projekt.id}/pruefen`, { method: 'POST' }).catch(() => null);
+      const j = r ? await r.json().catch(() => ({})) : {};
+      if (r?.ok && j.pruefung) {
+        ergebnis = j.pruefung;
+        benannt(j.benannt);
+      } else if (r && j.fehler) {
+        if (!still) zeige(false, j.fehler);
+      } else ergebnis = await ergebnisAbwarten<Pruefung>('pruefung', seit);
+      if (ergebnis) {
+        setPruefung(ergebnis);
+        const k = ergebnis.hinweise.filter((h) => h.stufe === 'kritisch');
+        liveLog({ art: 'erfolg', titel: `Vorbemerkungen geprüft: ${k.length} kritisch, ${ergebnis.hinweise.length - k.length} weitere Hinweise, ${ergebnis.bieterfragen.length} Bieterfragen` });
+        k.slice(0, 6).forEach((h) => liveLog({ art: 'hinweis', titel: h.titel, text: h.folge }));
+        if (!still) zeige(true, 'Prüfung fertig. Ergebnis im Prüfbericht.');
+      }
+    } finally {
+      setPruefLaeuft(false);
     }
-    setLaeuft(null);
+    return ergebnis;
+  }
+
+  /** Pläne gegen LV, Merkmal für Merkmal, mit Bieterfragen. */
+  async function planAbgleich(still = false): Promise<Abgleich | null> {
+    setAbgleichLaeuft(true);
+    const seit = Date.now();
+    let ergebnis: Abgleich | null = null;
+    try {
+      const r = await fetch(`/api/lv/${projekt.id}/abgleich`, { method: 'POST' }).catch(() => null);
+      const j = r ? await r.json().catch(() => ({})) : {};
+      if (r?.ok && j.abgleich) ergebnis = j.abgleich;
+      else if (r && j.fehler) {
+        if (!still) zeige(false, j.fehler);
+      } else ergebnis = await ergebnisAbwarten<Abgleich>('abgleich', seit);
+      if (ergebnis) {
+        setAbgleich(ergebnis);
+        const w = ergebnis.widersprueche ?? [];
+        liveLog({ art: 'erfolg', titel: `Plan gegen LV geprüft: ${w.length} Widersprüche, ${ergebnis.fehlt_im_lv.length} fehlen im LV, ${ergebnis.bieterfragen?.length ?? 0} Bieterfragen` });
+        w.slice(0, 6).forEach((x) => liveLog({ art: 'hinweis', titel: `${x.oz}: im LV ${x.lv}, im Plan ${x.plan}`, text: x.folge }));
+        if (!still) zeige(true, 'Plan gegen LV fertig. Ergebnis im Prüfbericht.');
+      }
+    } finally {
+      setAbgleichLaeuft(false);
+    }
+    return ergebnis;
+  }
+
+  /** Beide Prüfungen parallel, so schnell wie die langsamere. */
+  async function allesPruefen(still = false, plaene?: boolean) {
+    const mitPlaenen = plaene ?? dateien.some((d) => d.art === 'plan');
+    await Promise.allSettled([pruefen(still), mitPlaenen ? planAbgleich(still) : Promise.resolve(null)]);
+  }
+
+  /** Zeichnungssatz als Ganzes ordnen: keine doppelten Unterbaugruppen, Mengen, fehlende Zeichnungen, Kaufteile. */
+  async function satzOrdnen() {
+    liveSchritt({ titel: 'Zeichnungssatz wird geordnet', phase: 'satz' });
+    setLaeuft('Ordne den Zeichnungssatz: Zusammenbau, Unterbaugruppen, Mengen, Kaufteile …');
+    const r = await fetch(`/api/zeichnung/${projekt.id}/satz`, { method: 'POST' }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    const liste = await neuLaden();
+    if (r?.ok) {
+      benannt(j.benannt);
+      if (j.geaendert || j.neu) {
+        liveLog({ art: 'erfolg', titel: `Satz geordnet: ${j.geaendert} Positionen angepasst${j.neu ? `, ${j.neu} ergänzt` : ''}` });
+        (j.fehlend as string[] | undefined)?.forEach((f) => liveLog({ art: 'fehler', titel: `Zeichnung fehlt: ${f}`, text: 'Nur über das Gewicht aus der Stückliste gerechnet, bitte Zeichnung anfordern.' }));
+        if (j.kaufteile) liveLog({ art: 'hinweis', titel: `${j.kaufteile} Sorten Kaufteile als eigene Position`, text: 'Preis beim Lieferanten anfragen.' });
+        (j.fremdleistungen as string[] | undefined)?.forEach((f) => liveLog({ art: 'hinweis', titel: `Fremdleistung: ${f}`, text: 'Preis anfragen.' }));
+        (j.hinweise as string[] | undefined)?.slice(0, 3).forEach((h) => liveLog({ art: 'info', titel: h }));
+      }
+      await summeSpeichern(liste);
+    } else if (j.fehler) liveLog({ art: 'fehler', titel: j.fehler });
+    return liste;
   }
 
   async function neuRechnen() {
@@ -215,12 +365,16 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     return null;
   }
 
+  /** Hinweise aus den Unterlagen neu holen (sie werden beim Lesen ergänzt). */
+  async function hinweiseLaden() {
+    const { data } = await sb.from('projekte').select('ergebnis').eq('id', projekt.id).single();
+    setHinweise(((data?.ergebnis?.hinweise as string[] | undefined) ?? []).slice(0, 60));
+  }
+
   async function neuLaden() {
     const { data } = await sb.from('positionen').select('*').eq('projekt_id', projekt.id).order('sort');
     const neu = mitPreisen((data ?? []) as Position[], stamm);
     setPos(neu);
-    const { data: k } = await sb.from('ki_aufrufe').select('kosten_eur').eq('projekt_id', projekt.id);
-    setKiKosten((k ?? []).reduce((x, r) => x + Number(r.kosten_eur ?? 0), 0));
     return neu;
   }
 
@@ -247,30 +401,6 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     setLaeuft(null);
     if (modus === 'zeichnung' && neu.length) void vorschauLaden(neu);
     return neu;
-  }
-
-  /** Vorführung ohne eigene Zeichnung: drei ausgedachte Werkstattzeichnungen hochladen und direkt lesen. */
-  async function beispieleLaden() {
-    setLaeuft('Lade Beispielzeichnungen …');
-    const namen = ['Beispiel_BSP-101_Stuetze_S1.pdf', 'Beispiel_BSP-102_Traeger_T1.pdf', 'Beispiel_BSP-103_Konsole_K1.pdf'];
-    try {
-      const files = await Promise.all(
-        namen.map(async (n) => {
-          const r = await fetch(`/beispiele/${n}`);
-          if (!r.ok) throw new Error(n);
-          return new File([await r.blob()], n, { type: 'application/pdf' });
-        }),
-      );
-      if (meta.titel.startsWith('Neue Anfrage')) await metaSpeichern({ ...meta, titel: 'Lagererweiterung Halle 3 (Beispiel)', kunde: meta.kunde || 'Muster Bau GmbH', ort: meta.ort || 'Musterstadt' });
-      const neu = await hochladen(files);
-      let n = 0;
-      for (const d of neu) n += await zeichnungLesen(d, true);
-      setLaeuft(null);
-      zeige(true, `${neu.length} Beispielzeichnungen gelesen, ${n} Positionen kalkuliert.`);
-    } catch {
-      setLaeuft(null);
-      zeige(false, 'Beispielzeichnungen konnten nicht geladen werden.');
-    }
   }
 
   async function dateiArt(d: Datei, art: Datei['art']) {
@@ -303,11 +433,15 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       ab = bis + 1;
     }
     let neuGesamt = 0;
+    if (!still) liveBeginnen(`${d.name} wird gelesen`, 'lesen');
     while (ab !== null) {
       setLaeuft(`Lese ${d.name}${ab > 1 ? `, ab Seite ${ab}` : ''} …`);
       setLiestId(d.id);
+      const vonSeite: number = ab;
+      liveSchritt({ titel: d.art === 'baubeschreibung' ? 'Vorbemerkungen werden gelesen' : d.art === 'gaeb' ? 'GAEB-Datei wird eingelesen' : 'Leistungsverzeichnis wird gelesen', phase: 'lesen', datei: d.name, blatt: d.art === 'gaeb' ? null : vonSeite, blaetter: d.seiten, bild: null });
+      if (d.art !== 'gaeb') void liveBild(d, vonSeite);
       let r: Response | null = null;
-      let j: { fehler?: string; neu: number; naechste: number | null } = { neu: 0, naechste: null };
+      let j: { fehler?: string; neu: number; naechste: number | null; seiten?: number | null; art?: string; benannt?: Record<string, string> | null; positionen?: { oz: string; kurztext: string; menge: number | null; einheit: string | null }[] } = { neu: 0, naechste: null };
       try {
         r = await fetch(`/api/lv/${projekt.id}/lesen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id, ab_seite: ab }) });
         j = await r.json().catch(() => ({ neu: 0, naechste: null }));
@@ -335,15 +469,26 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       }
       if (!r.ok) {
         zeige(false, j.fehler ?? 'Lesen fehlgeschlagen.');
+        liveLog({ art: 'fehler', titel: j.fehler ?? 'Lesen fehlgeschlagen.' });
         break;
       }
       neuGesamt += j.neu;
       ab = j.naechste;
-      await neuLaden();
+      const liste = await neuLaden();
+      benannt(j.benannt);
+      if (j.art === 'gaeb') {
+        liveLog({ art: 'schritt', titel: `GAEB-Datei gelesen: ${j.neu} Positionen mit Ordnungszahl, Menge und Einheit` });
+        liste.filter((p) => (p.quelle ?? '').startsWith(`gaeb:${d.id}:`)).slice(0, 60).forEach((p) => logPosition({ oz: p.oz, kurztext: p.kurztext, menge: p.menge, einheit: p.einheit }));
+      } else {
+        liveLog({ art: 'schritt', titel: `Seite ${vonSeite}${j.naechste ? ` bis ${j.naechste - 1}` : j.seiten && j.seiten > vonSeite ? ` bis ${j.seiten}` : ''} gelesen${d.art === 'baubeschreibung' ? '' : `: ${j.neu} ${j.neu === 1 ? 'Position' : 'Positionen'}`}` });
+        (j.positionen ?? []).forEach((p) => logPosition(p));
+      }
     }
     setLiestId(null);
+    if (d.art === 'baubeschreibung' || d.art === 'lv') await hinweiseLaden();
     if (!still) {
       setLaeuft(null);
+      liveEnde();
       if (neuGesamt) zeige(true, `${neuGesamt} Positionen erkannt. Jetzt kalkulieren lassen.`);
     }
     return neuGesamt;
@@ -355,11 +500,25 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     if (schon && !still && !confirm(`Aus dieser Zeichnung sind schon ${schon} Positionen gelesen. Neu lesen ersetzt sie samt Änderungen. Weiter?`)) return 0;
     let seite: number | null = 1;
     let neuGesamt = 0;
+    let blaetter = d.seiten ?? null;
     setLiestId(d.id);
+    if (!still) liveBeginnen(`${d.name} wird gelesen`, 'lesen');
     while (seite !== null) {
       setLaeuft(`Lese ${d.name}${seite > 1 ? `, Blatt ${seite}` : ''} … Stückliste, Bohrungen, Nähte (rund 30 bis 90 Sekunden je Blatt)`);
+      const blatt: number = seite;
+      liveSchritt({ titel: 'Zeichnung wird gelesen', phase: 'lesen', datei: d.name, blatt, blaetter, bild: null });
+      void liveBild(d, blatt);
       let r: Response | null = null;
-      let j: { fehler?: string; neu: number; naechste: number | null; seiten?: number } = { neu: 0, naechste: null };
+      let j: {
+        fehler?: string;
+        neu: number;
+        naechste: number | null;
+        seiten?: number;
+        blatt?: { zeichnungsnummer?: string; titel?: string; gesamtgewicht_kg?: number | null };
+        benannt?: Record<string, string> | null;
+        positionen?: { oz: string; kurztext: string; menge: number; einheit: string; ep: number; gp: number; sicherheit: number; begruendung: string }[];
+        hinweise?: string[];
+      } = { neu: 0, naechste: null };
       try {
         r = await fetch(`/api/zeichnung/${projekt.id}/lesen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ datei_id: d.id, seite }) });
         j = await r.json().catch(() => ({ neu: 0, naechste: null }));
@@ -384,18 +543,35 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       }
       if (!r.ok) {
         zeige(false, j.fehler ?? 'Lesen fehlgeschlagen.');
+        liveLog({ art: 'fehler', titel: j.fehler ?? 'Lesen fehlgeschlagen.' });
         break;
       }
       neuGesamt += j.neu;
       seite = j.naechste;
-      if (j.seiten) setDateien((l) => l.map((x) => (x.id === d.id ? { ...x, seiten: j.seiten ?? x.seiten } : x)));
+      if (j.seiten) {
+        blaetter = j.seiten;
+        setDateien((l) => l.map((x) => (x.id === d.id ? { ...x, seiten: j.seiten ?? x.seiten } : x)));
+      }
+      const b = j.blatt;
+      liveLog({
+        art: 'schritt',
+        titel: `Blatt ${blatt}${blaetter ? ` von ${blaetter}` : ''} gelesen${b?.zeichnungsnummer ? `: Zeichnung ${b.zeichnungsnummer}` : ''}${b?.titel ? `, ${b.titel}` : ''}`,
+        text: b?.gesamtgewicht_kg ? `Gewicht laut Schriftfeld ${zahl(b.gesamtgewicht_kg, 1)} kg` : undefined,
+      });
+      (j.positionen ?? []).forEach((p) => logPosition(p));
+      if (!j.positionen?.length) liveLog({ art: 'info', titel: 'Keine eigene Fertigungsposition auf diesem Blatt', text: j.hinweise?.[0] });
+      (j.hinweise ?? []).slice(j.positionen?.length ? 0 : 1, 3).forEach((h) => liveLog({ art: 'hinweis', titel: h }));
+      benannt(j.benannt);
       await neuLaden();
     }
     setLiestId(null);
     if (neuGesamt) await summeSpeichern(await neuLaden());
     if (!still) {
+      if (neuGesamt) await satzOrdnen();
+      await hinweiseLaden();
       setLaeuft(null);
-      if (neuGesamt) zeige(true, `${neuGesamt} Positionen aus ${d.name} gelesen und kalkuliert. Gelb markierte bitte prüfen.`);
+      liveEnde('Fertig gelesen und kalkuliert');
+      if (neuGesamt) zeige(true, `${neuGesamt} Positionen aus ${d.name} gelesen und kalkuliert. Unsichere bitte prüfen.`);
     }
     return neuGesamt;
   }
@@ -404,9 +580,13 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     const offen = dateien.filter((d) => d.art === 'zeichnung' && !pos.some((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`)));
     if (!offen.length) return zeige(true, 'Alle Zeichnungen sind gelesen.');
     let n = 0;
+    liveBeginnen('Zeichnungen werden gelesen', 'lesen');
     for (const d of offen) n += await zeichnungLesen(d, true);
+    if (n) await satzOrdnen();
+    await hinweiseLaden();
     setLaeuft(null);
-    zeige(true, `${offen.length} Zeichnungen gelesen, ${n} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+    liveEnde('Fertig gelesen und kalkuliert');
+    zeige(true, `${offen.length} Zeichnungen gelesen, ${n} Positionen kalkuliert. Unsichere bitte prüfen.`);
   }
 
   async function kalkulieren(nur?: string[], gruendlich = false, still = false): Promise<number> {
@@ -418,9 +598,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     // Kleine Pakete: jede Anfrage bleibt unter einer Minute, auch bei wackeliger Verbindung
     const paket = 6;
     let fertig = 0;
+    if (!still) liveBeginnen('Positionen werden kalkuliert', 'kalkulieren');
     for (let i = 0; i < ziel.length; i += paket) {
       setLaeuft(`Kalkuliere ${Math.min(i + paket, ziel.length)} von ${ziel.length} Positionen …`);
       const ids = ziel.slice(i, i + paket);
+      liveSchritt({ titel: `Kalkuliere Positionen ${i + 1} bis ${Math.min(i + paket, ziel.length)} von ${ziel.length}`, phase: 'kalkulieren', bild: null, blatt: null, blaetter: null, datei: null });
       let r: Response | null = null;
       let j: { fehler?: string; gesetzt?: number } = {};
       try {
@@ -453,13 +635,18 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         }
         fertig += geschafft;
       }
-      await neuLaden();
+      const liste = await neuLaden();
+      for (const id of ids) {
+        const p = liste.find((x) => x.id === id);
+        if (p && p.status !== 'offen') logPosition({ ...p, sicherheit: sicherheitVon(p), begruendung: p.typ === 'fremd' ? 'Fremdgewerk, nicht in der Summe' : p.begruendung });
+      }
     }
     const neu = await neuLaden();
     await speichereZeilen([], neu);
     if (!still) {
       setLaeuft(null);
-      if (fertig) zeige(true, `${fertig} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+      liveEnde('Fertig kalkuliert');
+      if (fertig) zeige(true, `${fertig} Positionen kalkuliert. Unsichere bitte prüfen.`);
     }
     return fertig;
   }
@@ -476,6 +663,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
   /** Liest und kalkuliert die übergebenen Unterlagen von selbst (siehe ablegen). */
   async function automatisch(neu: Datei[]) {
+    liveBeginnen(modus === 'zeichnung' ? 'Zeichnungen werden gelesen' : 'Ausschreibung wird gelesen', 'lesen');
     try {
       if (modus === 'zeichnung') {
         const z = neu.filter((d) => d.art === 'zeichnung');
@@ -484,7 +672,15 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           setSchritt(z.length > 1 ? `Zeichnung ${i + 1} von ${z.length}` : 'Zeichnung wird gelesen und kalkuliert');
           n += await zeichnungLesen(d, true);
         }
-        if (z.length) zeige(true, `${z.length} ${z.length === 1 ? 'Zeichnung' : 'Zeichnungen'} gelesen, ${n} Positionen kalkuliert. Gelb markierte bitte prüfen.`);
+        if (n) {
+          setSchritt('Zeichnungssatz wird geordnet');
+          await satzOrdnen();
+        }
+        await hinweiseLaden();
+        const ende = await neuLaden();
+        const sch = schnitt(ende.filter(zaehlt));
+        liveEnde('Fertig gelesen und kalkuliert');
+        if (z.length) zeige(true, `${z.length} ${z.length === 1 ? 'Zeichnung' : 'Zeichnungen'} gelesen, ${ende.length} Positionen kalkuliert${sch !== null ? `, durchschnittliche Sicherheit ${Math.round(sch * 100)} %` : ''}.`);
         return;
       }
       if (modus !== 'lv') return;
@@ -514,7 +710,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         quelle = neuGaeb.length ? neuGaeb : neu.filter((d) => d.art === 'lv');
       }
 
-      const schritte = (quelle.length ? 1 : 0) + 1;
+      const schritte = (quelle.length ? 1 : 0) + 2;
       let nr = 0;
       let gelesen = 0;
       for (const d of quelle) {
@@ -527,17 +723,25 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         await lesen(d, true);
       }
       const liste = await neuLaden();
+      // Prüfbericht läuft parallel zur Kalkulation: er braucht nur die gelesenen Positionen
+      const pruefLauf = liste.length ? allesPruefen(true, alle.some((d) => d.art === 'plan')) : Promise.resolve();
       const offen = liste.filter((p) => p.status === 'offen' && !p.ansatz?.ausgeblendet).map((p) => p.id);
       if (offen.length) {
         setSchritt(`Schritt ${nr + 1} von ${schritte}: Preise werden kalkuliert`);
         await kalkulieren(offen, false, true);
       }
+      setSchritt(`Schritt ${nr + 2} von ${schritte}: Vorbemerkungen und Pläne werden geprüft`);
+      setLaeuft('Prüfbericht wird fertig: kritische Hinweise, Widersprüche, Bieterfragen …');
+      liveSchritt({ titel: 'Prüfbericht wird erstellt', phase: 'pruefen', bild: null, datei: null, blatt: null, blaetter: null });
+      await pruefLauf;
       const ende = await neuLaden();
-      const sch = schnitt(ende);
-      if (gelesen || offen.length) zeige(true, `Fertig: ${ende.length} Positionen gelesen und kalkuliert${sch !== null ? `, durchschnittliche Sicherheit ${Math.round(sch * 100)} %` : ''}.`);
+      const sch = schnitt(ende.filter(zaehlt));
+      liveEnde('Fertig gelesen, kalkuliert und geprüft');
+      if (gelesen || offen.length) zeige(true, `Fertig: ${ende.length} Positionen gelesen und kalkuliert${sch !== null ? `, durchschnittliche Sicherheit ${Math.round(sch * 100)} %` : ''}. Der Prüfbericht steht unten.`);
     } finally {
       setSchritt(null);
       setLaeuft(null);
+      setLive((l) => (l && l.laeuft ? { ...l, laeuft: false, ende: Date.now() } : l));
     }
   }
 
@@ -573,19 +777,28 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const unsicher = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5).length;
   const sicherAnzahl = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && sicherheitVon(p) >= 0.65).length;
 
+  const kritisch = (pruefung?.hinweise.filter((h) => h.stufe === 'kritisch').length ?? 0) + (abgleich?.widersprueche?.filter((w) => w.stufe === 'kritisch').length ?? 0);
+  const fragenAnzahl = (pruefung?.bieterfragen.length ?? 0) + (abgleich?.bieterfragen?.length ?? 0);
+  const zeichnungen = dateien.filter((d) => d.art === 'zeichnung');
+  const fehlend = pos.filter((p) => (p.ansatz as { zeichnung_fehlt?: string } | null)?.zeichnung_fehlt).length;
+  const zngKz = fehlend
+    ? { label: 'Zeichnungen', wert: `${zeichnungen.length}`, sub: `${fehlend} ${fehlend === 1 ? 'fehlt' : 'fehlen'} im Satz`, warn: true }
+    : { label: 'Zeichnungen', wert: `${zeichnungen.length}`, sub: `${zeichnungen.filter((d) => pos.some((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`))).length} gelesen` };
   const kzHero: { label: string; wert: string; sub?: string; warn?: boolean }[] =
     modus === 'zeichnung'
       ? [
           { label: 'Stahlgewicht', wert: `${zahl(zk.kg, 0)} kg`, sub: `${zahl(zk.teile, 0)} Teile` },
           { label: 'Fertigung', wert: `${zahl(zk.h, 1)} h`, sub: zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je Tonne` : 'aus den Arbeitsgängen' },
           { label: 'Preis je kg', wert: zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–', sub: 'Summe durch Gewicht' },
-          { label: 'KI-Kosten', wert: euro(kiKosten), sub: `Budget ${euro(projekt.ki_budget_eur, true)}` },
+          zngKz,
         ]
       : [
           { label: 'Positionen', wert: `${s.anzahl}`, sub: `${s.frei} freigegeben` },
           { label: 'Ø Sicherheit', wert: sch !== null ? `${Math.round(sch * 100)} %` : '–', sub: s.offen ? `${s.offen} noch offen` : 'alle kalkuliert' },
           { label: 'Fremdgewerke', wert: `${s.fremd}`, sub: 'nicht in der Summe' },
-          { label: 'KI-Kosten', wert: euro(kiKosten), sub: `Budget ${euro(projekt.ki_budget_eur, true)}` },
+          modus === 'lv' && pruefung
+            ? { label: 'Prüfbericht', wert: `${kritisch} kritisch`, sub: `${fragenAnzahl} Bieterfragen vorbereitet`, warn: kritisch > 0 }
+            : { label: 'Freigegeben', wert: euro(s.freigegeben, true), sub: `${s.frei} von ${s.anzahl} Positionen` },
         ];
 
   return (
@@ -617,10 +830,27 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                   <div key={k.label} className="min-w-0">
                     <dt className="text-[13px] text-white/70">{k.label}</dt>
                     <dd className="mt-0.5 text-[22px] font-extrabold leading-tight tracking-[-0.015em]">{k.wert}</dd>
-                    {k.sub && <dd className="truncate text-[12px] text-white/65">{k.sub}</dd>}
+                    {k.sub && <dd className={`truncate text-[12px] ${k.warn ? 'font-semibold text-[#FDE68A]' : 'text-white/65'}`}>{k.sub}</dd>}
                   </div>
                 ))}
               </dl>
+              {staffel && (
+                <div className="mt-5 rounded-2xl bg-white/10 px-4 py-3.5 ring-1 ring-white/15">
+                  <p className="text-[13px] font-semibold text-white/80">Preis je Satz nach Losgröße</p>
+                  <div className="mt-2 grid grid-cols-3 gap-3">
+                    {staffel.zeilen.map((z) => (
+                      <div key={z.n} className="min-w-0">
+                        <p className="text-[12px] text-white/65">{z.n === 1 ? '1 Satz' : `ab ${z.n} Sätzen`}</p>
+                        <p className="zahl text-[18px] font-bold leading-tight text-white">{euro(z.jeSatz)}</p>
+                        {z.n > 1 && <p className="text-[11px] text-white/60">Los {euro(z.jeSatz * z.n, true)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-snug text-white/60">
+                    Rüsten und Programmieren {zahl(staffel.stunden, 1)} h je Los ({euro(staffel.ruesten)}), verteilt auf die Losgröße. Wert unter Stammdaten änderbar.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:flex-col lg:items-stretch">
               <Link href={`/${modus}/${projekt.id}/angebot`} className="knopf-hell knopf-gross">
@@ -661,7 +891,17 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             <span className={`block ${schritt ? 'text-[13px] font-medium text-brand-strong/80' : 'text-[14px] font-semibold'}`}>{laeuft}</span>
             {schritt && <span className="mt-1 block text-[12px] text-brand-strong/70">AIM arbeitet von selbst weiter. Lassen Sie diese Seite bitte geöffnet, bis es fertig ist.</span>}
           </span>
+          {live && (
+            <button type="button" className="knopf-primaer knopf-klein ml-auto shrink-0 self-center" onClick={() => setLiveOffen(true)}>
+              <Maximize2 className="size-3.5" strokeWidth={2} aria-hidden /> Live ansehen
+            </button>
+          )}
         </div>
+      )}
+      {!laeuft && live && live.ereignisse.length > 0 && (
+        <button type="button" className="knopf-leise knopf-klein self-start" onClick={() => setLiveOffen(true)}>
+          <ScanLine className="size-3.5" strokeWidth={2} aria-hidden /> Protokoll des letzten Laufs ansehen
+        </button>
       )}
 
       {modus === 'zeichnung' && (
@@ -695,7 +935,19 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               </div>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {dateien.length === 0 && darfSchreiben ? (
+            <button
+              type="button"
+              className="flex min-h-[300px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-line-strong bg-surface/60 p-8 text-center transition-colors hover:border-brand hover:bg-brand-tint/40"
+              onClick={() => dateiInput.current?.click()}
+              disabled={!!laeuft}
+            >
+              <span className="grid size-14 place-items-center rounded-full bg-brand-tint text-brand-strong"><Upload className="size-6" strokeWidth={1.75} aria-hidden /></span>
+              <span className="text-[20px] font-bold text-ink-950">Zeichnungen hier ablegen</span>
+              <span className="max-w-[56ch] text-[15px] text-ink-600">PDF, Scan oder Foto hierher ziehen oder klicken. Mehrere gehen auf einmal, AIM liest und kalkuliert dann von selbst.</span>
+            </button>
+          ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {dateien.map((d) => {
               const aus = pos.filter((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`));
               const n = aus.length;
@@ -703,7 +955,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               const liest = liestId === d.id;
               return (
                 <article key={d.id} className="karte flex flex-col overflow-hidden">
-                  <button type="button" className={`relative aspect-[1.414] border-b border-line bg-white ${liest ? 'abtasten' : ''}`} onClick={() => dateiOeffnen(d)} title="Zeichnung öffnen">
+                  <button type="button" className={`group relative aspect-[1.414] border-b border-line bg-white ${liest ? 'abtasten' : ''}`} onClick={() => (liest && live ? setLiveOffen(true) : dateiOeffnen(d))} title={liest ? 'Live ansehen' : 'Zeichnung öffnen'}>
                     {vorschau[d.id] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={vorschau[d.id]} alt={`Vorschau ${d.name}`} className="absolute inset-0 h-full w-full object-contain p-2" />
@@ -711,6 +963,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       <BlattPlatzhalter />
                     )}
                     {n > 0 && <span className="marke absolute left-3 top-3 h-[22px] bg-brand px-2 text-[11px] text-white">{n} {n === 1 ? 'Position' : 'Positionen'}</span>}
+                    {liest && live && (
+                      <span className="absolute inset-x-0 bottom-3 z-10 flex justify-center">
+                        <span className="marke h-8 gap-1.5 bg-ink-950/85 px-3.5 text-[13px] text-white shadow-[var(--shadow-float)] transition-transform group-hover:scale-105"><Maximize2 className="size-3.5" strokeWidth={2} aria-hidden />Live ansehen</span>
+                      </span>
+                    )}
                   </button>
                   <div className="flex flex-1 flex-col gap-3 p-4">
                     <div className="min-w-0">
@@ -748,26 +1005,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               >
                 <span className="grid size-12 place-items-center rounded-full bg-brand-tint text-brand-strong"><Upload className="size-5" strokeWidth={1.75} aria-hidden /></span>
                 <span className="text-[16px] font-bold text-ink-950">Zeichnungen ablegen</span>
-                <span className="text-[14px] text-ink-600">PDF, Scan oder Foto hierher ziehen<br />oder klicken. Mehrere gehen auf einmal.</span>
-              </button>
-            )}
-            {darfSchreiben && dateien.length === 0 && (
-              <button
-                type="button"
-                className="flex min-h-[250px] flex-col items-start justify-between gap-4 rounded-2xl border border-brand-tint-2 p-6 text-left transition-[transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float)]"
-                style={{ background: 'var(--brand-gradient-soft)' }}
-                disabled={!!laeuft}
-                onClick={beispieleLaden}
-              >
-                <span className="grid size-12 place-items-center rounded-full bg-white text-brand-strong shadow-[var(--shadow-card)]"><FileStack className="size-5" strokeWidth={1.75} aria-hidden /></span>
-                <span>
-                  <span className="block text-[18px] font-extrabold leading-tight tracking-[-0.01em] text-ink-950">Mit Beispielzeichnungen ausprobieren</span>
-                  <span className="mt-1.5 block text-[14px] text-ink-600">Stütze, Träger und Konsole. AIM liest alle drei und kalkuliert, in rund zwei Minuten.</span>
-                </span>
-                <span className="knopf-primaer knopf-klein pointer-events-none">Beispiel laden</span>
+                <span className="text-[14px] text-ink-600">Weitere Zeichnungen hierher ziehen oder klicken.</span>
               </button>
             )}
           </div>
+          )}
           {hinweise.length > 0 && (
             <details className="karte px-5 py-3.5">
               <summary className="cursor-pointer text-[14px] font-bold text-ink-950">Hinweise aus den Zeichnungen ({hinweise.length})</summary>
@@ -890,69 +1132,31 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
               })}
             </div>
           )}
-          {hinweise.length > 0 && (
-            <details className="karte px-5 py-3.5">
-              <summary className="cursor-pointer text-[14px] font-bold text-ink-950">Hinweise aus den Vorbemerkungen ({hinweise.length})</summary>
-              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[13px] text-ink-600">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
-            </details>
-          )}
         </section>
       )}
 
-      {modus === 'lv' && pos.length > 0 && (
-        <section className="karte p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <h2 className="font-semibold text-sm">Prüfbericht</h2>
-              <p className="text-[12px] text-grau">
-                {bericht.warnungen ? `${bericht.warnungen} Positionen mit Auffälligkeiten` : 'Keine Auffälligkeiten bei Preisen, Gewichten und Mengen'}
-                {bericht.hinweise > bericht.warnungen ? `, ${bericht.hinweise - bericht.warnungen} mit Hinweisen` : ''}
-                {abgleich ? ` · Plan gegen LV geprüft am ${new Date(abgleich.datum).toLocaleDateString('de-DE')}` : ''}
-              </p>
-            </div>
-            <div className="ml-auto flex gap-2">
-              {(bericht.hinweise > 0 || abgleich) && <button className="knopf-leise knopf-klein" onClick={() => setBerichtOffen(!berichtOffen)}>{berichtOffen ? 'Zuklappen' : 'Anzeigen'}</button>}
-              {darfSchreiben && dateien.some((d) => d.art === 'plan') && (
-                <button className="knopf-zweit knopf-klein" disabled={!!laeuft} onClick={planAbgleich} title="Pläne und LV gegeneinander prüfen: fehlende Positionen, Mengenabweichungen">Plan gegen LV prüfen</button>
-              )}
-            </div>
-          </div>
-          {berichtOffen && (
-            <div className="space-y-3">
-              {abgleich && (
-                <div className="rounded-xl border border-linie p-3 space-y-2 text-[13px]">
-                  <div className="text-[12px] font-medium schmal text-tiefblau font-medium">Plan gegen LV · {abgleich.plaene.join(', ')}</div>
-                  <p>{abgleich.zusammenfassung}</p>
-                  {abgleich.fehlt_im_lv.length > 0 && (
-                    <div><div className="font-medium">Auf den Plänen, aber ohne LV-Position</div>
-                      <ul className="list-disc pl-5 text-grau">{abgleich.fehlt_im_lv.map((f, i) => <li key={i}>{f.bauteil}{f.menge_plan ? ` (${zahl(f.menge_plan, 2)} ${f.einheit})` : ''}, {f.fundstelle}. {f.hinweis}</li>)}</ul></div>
-                  )}
-                  {abgleich.mengen.length > 0 && (
-                    <div><div className="font-medium">Mengen weichen ab</div>
-                      <ul className="list-disc pl-5 text-grau">{abgleich.mengen.map((m, i) => <li key={i}>OZ {m.oz}: LV {zahl(m.menge_lv, 2)} {m.einheit}, Plan {zahl(m.menge_plan, 2)} {m.einheit}. {m.hinweis}</li>)}</ul></div>
-                  )}
-                  {abgleich.nicht_im_plan.length > 0 && (
-                    <div><div className="font-medium">Im LV, aber auf keinem Plan gefunden</div>
-                      <ul className="list-disc pl-5 text-grau">{abgleich.nicht_im_plan.map((n, i) => <li key={i}>OZ {n.oz}: {n.hinweis}</li>)}</ul></div>
-                  )}
-                </div>
-              )}
-              {bericht.je.length > 0 && (
-                <table className="tabelle">
-                  <tbody>
-                    {bericht.je.map(({ p, befunde }) => (
-                      <tr key={p.id} className="cursor-pointer hover:bg-papier/70" onClick={() => setOffenId(p.id)}>
-                        <td className="zahl text-[12px] w-24 whitespace-nowrap">{p.oz}</td>
-                        <td className="text-[13px]"><div className="font-medium line-clamp-1">{p.kurztext}</div>
-                          {befunde.map((f, i) => <div key={i} className={`text-[12px] ${f.stufe === 'warnung' ? 'text-gelb' : 'text-grau'}`}>{f.stufe === 'warnung' ? '⚠ ' : ''}{f.text}</div>)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </section>
+      {modus === 'lv' && (pos.length > 0 || pruefung || hinweise.length > 0) && (
+        <Pruefbericht
+          pruefung={pruefung}
+          abgleich={abgleich}
+          altHinweise={hinweise}
+          befunde={bericht.je}
+          positionen={pos}
+          pruefLaeuft={pruefLaeuft}
+          abgleichLaeuft={abgleichLaeuft}
+          hatPlaene={dateien.some((d) => d.art === 'plan')}
+          darfSchreiben={darfSchreiben}
+          gesperrt={!!laeuft && !pruefLaeuft && !abgleichLaeuft}
+          onPruefen={() => {
+            liveBeginnen('Vorbemerkungen werden geprüft', 'pruefen');
+            void pruefen().then(() => liveEnde('Prüfung fertig'));
+          }}
+          onAbgleich={() => {
+            liveBeginnen('Pläne werden gegen das LV geprüft', 'pruefen');
+            void planAbgleich().then(() => liveEnde('Plan gegen LV fertig'));
+          }}
+          onPosition={(id) => setOffenId(id)}
+        />
       )}
 
       <section aria-labelledby="pos" className="flex min-w-0 flex-col gap-3">
@@ -1042,6 +1246,9 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                         <div className="mt-0.5 flex flex-wrap gap-x-2 text-[13px] text-ink-500">
                           {p.ansatz?.bereich && <span className="truncate max-w-[340px]">{p.ansatz.bereich}</span>}
                           {p.ansatz?.art === 'baugruppe' && <BaugruppeKurz p={p} stamm={stamm} />}
+                          {(p.ansatz as { zeichnung_fehlt?: string } | null)?.zeichnung_fehlt && <span className="font-semibold text-[#B91C1C]">Zeichnung {(p.ansatz as { zeichnung_fehlt?: string }).zeichnung_fehlt} fehlt</span>}
+                          {(p.ansatz as { nur_gewicht?: boolean } | null)?.nur_gewicht && <span className="font-semibold text-[#9A3412]">über Gewicht geschätzt, rund {zahl(Number((p.ansatz as { kg_geschaetzt?: number }).kg_geschaetzt ?? 0), 0)} kg je Stück</span>}
+                          {p.ansatz?.art === 'zukauf' && p.ep === null && <span className="font-semibold text-[#9A3412]">Preis anfragen</span>}
                           {p.ansatz?.bedarf && <span className="text-gelb">Bedarfsposition</span>}
                           {p.ansatz?.alternativ && <span className="text-gelb">Alternative</span>}
                         </div>
@@ -1049,7 +1256,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       <td className="text-right zahl text-[14px] whitespace-nowrap">{zahl(p.menge, 3)}</td>
                       <td className="text-[13px] text-grau">{p.einheit}</td>
                       {modus !== 'zeichnung' && <td className="text-[13px] text-grau">{fremd ? 'Fremdgewerk' : p.ansatz?.art ? ART_LABEL[p.ansatz.art] : '–'}{p.ansatz?.ep_hand !== undefined && p.ansatz?.ep_hand !== null ? ', von Hand' : ''}</td>}
-                      <td className="text-right zahl text-[14px] whitespace-nowrap">{euro(p.ep)}</td>
+                      <td className="text-right zahl text-[14px] whitespace-nowrap">{p.ep === null && p.ansatz?.art === 'zukauf' ? <span className="font-sans text-[13px] font-semibold text-[#9A3412]">anfragen</span> : euro(p.ep)}</td>
                       <td className="text-right zahl text-[14px] font-semibold whitespace-nowrap">{euro(p.gp)}</td>
                       <td>
                         <SicherheitsAmpel p={p} />
@@ -1064,6 +1271,15 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         )}
         </div>
       </section>
+
+      {liveOffen && live && (
+        <LiveAnsicht
+          zustand={live}
+          modus={modus}
+          kennzahlen={{ positionen: pos.filter((p) => p.status !== 'offen').length, summe: s.gesamt, sicherheit: sch }}
+          onSchliessen={liveSchliessen}
+        />
+      )}
 
       {offen && (
         <PositionsDetail

@@ -4,6 +4,8 @@ import { KiFehler } from '@/lib/ki';
 import { blattLesen, merkmaleAus, type GeleseneBaugruppe } from '@/lib/zeichnung-ki';
 import { baugruppeRechnen, stuecklistenText, teilart, type BaugruppeAnsatz } from '@/lib/engine/zeichnung';
 import { ladeStammdaten } from '@/lib/daten';
+import { rechnePosition, type Ansatz, type Oberflaeche } from '@/lib/engine/bauteile';
+import { automatischBenennen } from '@/lib/benennen';
 import { summen, type Position } from '@/components/positionen/typen';
 
 export const runtime = 'nodejs';
@@ -15,6 +17,22 @@ function kurztextAus(benennung: string, profil?: string, abmessung?: string | nu
   const p = profil ? profil.replace(/\*/g, '×') : '';
   const mitProfil = p && !norm(benennung).includes(norm(p)) ? `${benennung} ${p}` : benennung;
   return `${mitProfil}${abmessung ? `, ${abmessung}` : ''}`.slice(0, 200);
+}
+
+/** Oberfläche der Zeichnung auf die Oberflächen der Gewichtskalkulation abbilden. */
+function oberflaecheKg(o: string): Oberflaeche {
+  if (o === 'verzinkt') return 'verzinkt';
+  if (o === 'verzinkt_beschichtet') return 'verzinkt_pulver';
+  if (o === 'grundiert' || o === 'beschichtet') return 'grundiert';
+  return 'roh';
+}
+
+/** Fläche je Stück aus "Gitterrost 1000x1000" (mm) in m², sonst null. */
+function rostFlaeche(text: string): number | null {
+  const m = text.replace(/,/g, '.').match(/(\d{3,4})\s*[x×*]\s*(\d{3,4})/);
+  if (!m) return null;
+  const f = (Number(m[1]) * Number(m[2])) / 1_000_000;
+  return f > 0.05 && f < 20 ? Math.round(f * 1000) / 1000 : null;
 }
 
 /** Liest ein Blatt einer Werkstattzeichnung und legt je Position eine kalkulierte Baugruppe an. */
@@ -40,9 +58,55 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     let sort = (letzte?.[0]?.sort ?? -10) + 10;
 
     const zeichnung = daten.blatt.zeichnungsnummer || datei.name.replace(/\.[a-z0-9]+$/i, '');
+    const de = (v: number, n = 0) => v.toLocaleString('de-DE', { maximumFractionDigits: n });
+
+    /** Zusammenbauzeichnung ohne Einzelteile: Vorkalkulation über das geschätzte Gewicht (Staffel aus den Stammdaten). */
+    const nachGewicht = (b: GeleseneBaugruppe) => {
+      const t = b.teile[0];
+      const kg = Math.max(0, Number(t?.gewicht_kg ?? b.gewicht_zeichnung_kg ?? 0));
+      const anzahl = b.anzahl > 0 ? b.anzahl : 1;
+      const text = `${b.benennung} ${t?.profil ?? ''}`;
+      const rost = /gitterrost|rost\b/i.test(text) ? rostFlaeche(text) : null;
+      const sicher = Math.min(0.5, Math.max(0.2, Number(b.sicherheit ?? 0.4)));
+      const basis = { zeichnung, nur_gewicht: true, kg_geschaetzt: kg };
+      let ansatz: Ansatz & Record<string, unknown>;
+      let menge = anzahl;
+      let einheit = 'Stck';
+      if (rost) {
+        ansatz = { art: 'gitterrost_m2', montage: false, ...basis };
+        menge = Math.round(anzahl * rost * 100) / 100;
+        einheit = 'm²';
+      } else {
+        ansatz = { art: 'stahl_kg', kg_je_einheit: Math.round(kg * 10) / 10, oberflaeche: oberflaecheKg(b.oberflaeche), montage: false, blech: /blech|riffel/i.test(text), ...basis };
+      }
+      const r = rechnePosition(ansatz as Ansatz, menge, stamm);
+      const ep = r.ep ?? 0;
+      return {
+        projekt_id: id,
+        oz: b.pos,
+        kurztext: kurztextAus(b.benennung, undefined, b.abmessung),
+        langtext: `${b.benennung}${t?.profil && t.profil !== b.benennung ? `, ${t.profil}` : ''}. Zeichnung ${zeichnung}, ${anzahl} Stück. Zusammenbauzeichnung ohne Einzelteile, Gewicht geschätzt: rund ${de(kg)} kg je Stück.`,
+        menge,
+        einheit,
+        typ: ansatz.art,
+        ansatz,
+        ep,
+        gp: Math.round(ep * menge * 100) / 100,
+        sicherheit: sicher,
+        status: 'pruefen',
+        begruendung: `${b.loesungsweg} Preis über die Gewichtsstaffel mit Ihren Stammdaten, Einzelteile bitte mit den Fertigungszeichnungen nachrechnen.`.trim(),
+        quelle: `zng:${datei_id}:${seite}`,
+      };
+    };
+
     const neu = daten.positionen
       .filter((b) => b.teile.length > 0)
       .map((b: GeleseneBaugruppe) => {
+        if (b.nur_gewicht) {
+          const z = { ...nachGewicht(b), sort };
+          sort += 10;
+          return z;
+        }
         const ansatz: BaugruppeAnsatz = {
           art: 'baugruppe',
           zeichnung,
@@ -81,13 +145,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const summe = summen((alle ?? []) as unknown as Position[]).gesamt;
     await sb.from('projekte').update({ summe_netto: Math.round(summe * 100) / 100 }).eq('id', id);
 
+    // Hinweise gehören zum Blatt: erneutes Lesen ersetzt sie, statt sie zu stapeln
     const { data: pr } = await sb.from('projekte').select('ergebnis').eq('id', id).single();
-    const alt = (pr?.ergebnis?.hinweise as string[] | undefined) ?? [];
-    const blaetter = { ...((pr?.ergebnis?.blaetter as Record<string, unknown>) ?? {}), [`${datei_id}:${seite}`]: { ...daten.blatt, datei: datei.name, seite } };
-    const blattHinweise = daten.hinweise.map((h) => `${zeichnung}: ${h}`);
-    await sb.from('projekte').update({ ergebnis: { ...(pr?.ergebnis ?? {}), blaetter, hinweise: Array.from(new Set([...alt, ...blattHinweise])).slice(0, 60) } }).eq('id', id);
+    type BlattInfo = { datei?: string; seite?: number; zeichnungsnummer?: string; hinweise?: string[] };
+    const blaetter: Record<string, BlattInfo> = { ...((pr?.ergebnis?.blaetter as Record<string, BlattInfo>) ?? {}), [`${datei_id}:${seite}`]: { ...daten.blatt, datei: datei.name, seite, hinweise: daten.hinweise.slice(0, 10) } };
+    const hinweise = Array.from(new Set(Object.values(blaetter).flatMap((b) => (b.hinweise ?? []).map((h) => `${b.zeichnungsnummer || b.datei || ''}: ${h}`)))).slice(0, 60);
+    await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'blaetter', p_wert: blaetter });
+    await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'hinweise', p_wert: hinweise });
+    const benannt = await automatischBenennen(sb, id, { titel: daten.blatt.projektname || daten.blatt.projekt || daten.blatt.titel, kunde: daten.blatt.kunde });
     await sb.from('dateien').update({ seiten, gelesen_bis: seite, art: 'zeichnung' }).eq('id', datei_id);
-    return NextResponse.json({ fertig: seite >= seiten, neu: neu.length, seiten, naechste: seite < seiten ? seite + 1 : null, kosten: kostenEur, blatt: daten.blatt });
+    return NextResponse.json({ fertig: seite >= seiten, neu: neu.length, seiten, naechste: seite < seiten ? seite + 1 : null, kosten: kostenEur, blatt: daten.blatt, benannt, positionen: neu.map((z) => ({ oz: z.oz, kurztext: z.kurztext, menge: z.menge, einheit: z.einheit, ep: z.ep, gp: z.gp, sicherheit: z.sicherheit, begruendung: z.begruendung })), hinweise: daten.hinweise.slice(0, 10) });
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Beim Lesen ist ein Fehler aufgetreten.';
     console.error('zeichnung lesen', e);

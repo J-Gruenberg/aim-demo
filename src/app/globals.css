@@ -202,6 +202,33 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .puls::after { content: ""; position: absolute; inset: -3px; border-radius: 999px; border: 1.5px solid var(--brand); animation: puls 1.6s var(--ease-standard) infinite; }
   @keyframes puls { from { transform: scale(0.7); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .puls::after { animation: none; opacity: 0; } }
+
+  /* Live-Ansicht: AIM liest das Blatt, Vollbild auf dunklem Teal */
+  .live-flaeche {
+    background:
+      radial-gradient(1100px 680px at 18% -10%, rgba(14, 140, 124, 0.32), transparent 62%),
+      radial-gradient(900px 620px at 105% 110%, rgba(8, 106, 94, 0.3), transparent 60%),
+      #041512;
+    color: #e6f2ef;
+  }
+  .live-raster {
+    background-image: linear-gradient(rgba(45, 212, 191, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(45, 212, 191, 0.07) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+  .live-strahl { position: absolute; left: 0; right: 0; height: 24%; top: -24%; pointer-events: none; background: linear-gradient(to bottom, transparent, rgba(45, 212, 191, 0.08) 55%, rgba(45, 212, 191, 0.32) 95%, #5eead4 100%); box-shadow: 0 10px 28px rgba(94, 234, 212, 0.5); animation: live-strahl 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+  @keyframes live-strahl { to { top: 100%; } }
+  .live-fokus { position: absolute; width: 28%; aspect-ratio: 1.45; border: 1.5px solid rgba(94, 234, 212, 0.95); border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(4, 21, 18, 0.22), inset 0 0 32px rgba(94, 234, 212, 0.35); animation: live-fokus 16s ease-in-out infinite; }
+  @keyframes live-fokus { 0% { left: 5%; top: 7%; } 20% { left: 64%; top: 9%; } 40% { left: 66%; top: 60%; } 60% { left: 7%; top: 62%; } 80% { left: 36%; top: 34%; } 100% { left: 5%; top: 7%; } }
+  .live-rein { animation: live-rein 460ms var(--ease-standard) both; }
+  @keyframes live-rein { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: none; } }
+  .live-glimmen { animation: live-glimmen 2.4s ease-in-out infinite; }
+  @keyframes live-glimmen { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .live-cursor::after { content: ""; display: inline-block; width: 0.5em; height: 1em; margin-left: 3px; vertical-align: -2px; background: #5eead4; animation: live-blinken 1s steps(1) infinite; }
+  @keyframes live-blinken { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .live-strahl { display: none; }
+    .live-fokus, .live-glimmen, .live-rein, .live-cursor::after { animation: none; }
+  }
 }
 
 @media print {

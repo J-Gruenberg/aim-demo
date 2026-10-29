@@ -16,6 +16,49 @@ export type AnsatzGespeichert = Partial<Ansatz> & {
 
 export type ArchivTreffer = { projekt: string; datum: string | null; text: string; ep: number | null; einheit: string | null; menge?: number | null; kg_je_einheit?: number | null; aehnlichkeit: number; quelle?: string };
 
+/** Ampel für Hinweise: kritisch = kostet Geld oder ist ein Risiko, beachten = sollte man wissen, info = Standard. */
+export type HinweisStufe = 'kritisch' | 'beachten' | 'info';
+export type HinweisThema = 'kosten' | 'termine' | 'technik' | 'baustelle' | 'nachweise' | 'vertrag';
+
+export type PruefHinweis = {
+  stufe: HinweisStufe;
+  thema: HinweisThema;
+  titel: string; // kurz, höchstens sieben Wörter
+  text: string; // was gefordert ist, mit Zahlen
+  folge: string; // was das für die Kalkulation heißt
+  fundstelle: string; // z. B. "LV S. 8" oder "Vorbemerkung 2.3"
+  oz: string[]; // betroffene Positionen, leer wenn allgemein
+};
+
+/** Fertig formulierte Frage an die Vergabestelle. Wird nur vorgeschlagen, nie selbst versendet. */
+export type Bieterfrage = {
+  frage: string;
+  bezug: string; // OZ, Seite oder Plan
+  begruendung: string; // warum fragen: was am Preis hängt
+  stufe: 'kritisch' | 'beachten';
+  quelle: 'vorbemerkungen' | 'plaene';
+};
+
+/** Abweichung zwischen LV-Text und Planbeschriftung, Merkmal für Merkmal. */
+export type Widerspruch = {
+  oz: string;
+  merkmal: 'werkstoff' | 'oberflaeche' | 'profil' | 'abmessung' | 'befestigung' | 'anzahl' | 'sonstiges';
+  lv: string; // was im LV steht
+  plan: string; // was im Plan steht
+  fundstelle: string;
+  folge: string;
+  stufe: 'kritisch' | 'beachten';
+};
+
+/** Prüfung der Vorbemerkungen: Hinweise mit Ampel und Bieterfragen, liegt in projekte.ergebnis.pruefung. */
+export type Pruefung = {
+  datum: string;
+  zusammenfassung: string;
+  hinweise: PruefHinweis[];
+  bieterfragen: Bieterfrage[];
+};
+
+/** Plan gegen LV, liegt in projekte.ergebnis.abgleich. widersprueche und bieterfragen gibt es ab der gehärteten Prüfung. */
 export type Abgleich = {
   datum: string;
   plaene: string[];
@@ -23,6 +66,8 @@ export type Abgleich = {
   fehlt_im_lv: { bauteil: string; fundstelle: string; menge_plan: number | null; einheit: string; hinweis: string }[];
   nicht_im_plan: { oz: string; hinweis: string }[];
   mengen: { oz: string; menge_lv: number; menge_plan: number; einheit: string; hinweis: string }[];
+  widersprueche?: Widerspruch[];
+  bieterfragen?: Bieterfrage[];
 };
 
 export type Position = {

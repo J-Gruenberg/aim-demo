@@ -7,11 +7,10 @@ export async function ladePositionsProjekt(id: string, typ: 'lv' | 'bauteil' | '
   const sb = await supabaseServer();
   const { data: p } = await sb.from('projekte').select('*').eq('id', id).maybeSingle();
   if (!p || p.typ !== typ) return null;
-  const [{ data: pos }, { data: dateien }, { werte }, { data: ki }, profil] = await Promise.all([
+  const [{ data: pos }, { data: dateien }, { werte }, profil] = await Promise.all([
     sb.from('positionen').select('*').eq('projekt_id', id).order('sort'),
     sb.from('dateien').select('*').eq('projekt_id', id).order('created_at'),
     ladeStammdaten(sb),
-    sb.from('ki_aufrufe').select('kosten_eur').eq('projekt_id', id),
     aktuellesProfil(),
   ]);
   return {
@@ -19,7 +18,13 @@ export async function ladePositionsProjekt(id: string, typ: 'lv' | 'bauteil' | '
     positionen: (pos ?? []) as Position[],
     dateien: (dateien ?? []) as Datei[],
     stamm: werte,
-    kiKosten: (ki ?? []).reduce((s, r) => s + Number(r.kosten_eur ?? 0), 0),
     darfSchreiben: profil?.rolle !== 'leser',
   };
+}
+
+/** Projektname für den Browser-Tab. */
+export async function projektTitel(id: string) {
+  const sb = await supabaseServer();
+  const { data } = await sb.from('projekte').select('titel').eq('id', id).maybeSingle();
+  return { title: data?.titel ?? 'Kalkulation' };
 }

@@ -11,7 +11,8 @@ Regeln:
 - Bedarfspositionen (Eventual, "nur auf Anordnung", "NEP", "Bedarf") mit bedarf = true. Alternativpositionen mit alternativ = true.
 - Titel und Abschnittsüberschriften sind keine Positionen.
 - Positionen, die auf den Seiten nach dem markierten Bereich weitergehen, vollständig ausgeben (der Folgetext ist mitgeliefert). Positionen, die vor dem markierten Bereich beginnen, NICHT ausgeben.
-- In "hinweise" kurz festhalten, was aus Vorbemerkungen und Baubeschreibung für die Kalkulation wichtig ist: Montagehöhe, Kran/Hebezeuge, Zugänglichkeit, Ausführungsklasse (EXC), Korrosionsschutz, Fristen, Vertragsstrafen, Nachweise. Leer lassen, wenn nichts davon auf diesen Seiten steht.`;
+- In "hinweise" kurz festhalten, was aus Vorbemerkungen und Baubeschreibung für die Kalkulation wichtig ist: Montagehöhe, Kran/Hebezeuge, Zugänglichkeit, Ausführungsklasse (EXC), Korrosionsschutz, Fristen, Vertragsstrafen, Nachweise. Leer lassen, wenn nichts davon auf diesen Seiten steht.
+- "projekt": titel = kurzer, sprechender Projektname aus Bauvorhaben und Gewerk, höchstens acht Wörter (z. B. "Berufskolleg Meschede, Schlosserarbeiten II"), auftraggeber = Vergabestelle oder Bauherr, baustelle = Ort der Baustelle. Nur ausfüllen, wenn es auf diesen Seiten steht, sonst leere Strings.`;
 
 export const SYSTEM_PLAN = `Du erstellst für einen Stahl- und Metallbaubetrieb (Stahlkonstruktionen, Treppen, Geländer, Gitterroste, Bühnen, Hallenbau) aus Zeichnungen (Werkplan, Ausführungsplan, Skizze, Stückliste) ein Leistungsverzeichnis, weil kein LV vorliegt.
 Aufgabe: Lies die Zeichnung und lege für jedes Bauteil unseres Gewerks eine Position an. Nur was auf der Zeichnung steht, nichts dazuerfinden.
@@ -23,7 +24,8 @@ Regeln:
 - Gleiche Bauteile zu einer Position zusammenfassen und die Stückzahl als Menge nehmen.
 - Fremdgewerke (Beton, Mauerwerk, Elektro) nicht als Position anlegen.
 - seite = Seitennummer, auf der das Bauteil steht. bedarf und alternativ = false.
-- In "hinweise": fehlende Maße, unklare Details, Maßstab, Planstand, Annahmen.`;
+- In "hinweise": fehlende Maße, unklare Details, Maßstab, Planstand, Annahmen.
+- "projekt": titel = kurzer Projektname aus dem Plankopf (Bauvorhaben und Bauteil), auftraggeber = Bauherr, baustelle = Ort. Leere Strings, wenn nicht genannt.`;
 
 export const SCHEMA_LESEN = {
   type: 'object',
@@ -47,8 +49,14 @@ export const SCHEMA_LESEN = {
       },
     },
     hinweise: { type: 'array', items: { type: 'string' } },
+    projekt: {
+      type: 'object',
+      properties: { titel: { type: 'string' }, auftraggeber: { type: 'string' }, baustelle: { type: 'string' } },
+      required: ['titel', 'auftraggeber', 'baustelle'],
+      additionalProperties: false,
+    },
   },
-  required: ['positionen', 'hinweise'],
+  required: ['positionen', 'hinweise', 'projekt'],
   additionalProperties: false,
 } as const;
 

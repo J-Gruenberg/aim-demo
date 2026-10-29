@@ -1,5 +1,6 @@
 'use client';
-import { Building2, ChevronDown, CircleDot, Flag, MapPin, type LucideIcon } from 'lucide-react';
+import { Archive, Building2, ChevronDown, CircleDot, Flag, MapPin, type LucideIcon } from 'lucide-react';
+import { ProjektAktionen, useArchiviertAm } from '@/components/ProjektAktionen';
 
 export type ProjektMeta = {
   id: string;
@@ -40,13 +41,33 @@ export function ProjektKopf({
   kennzahlen?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  const [archiviertAm, setArchiviertAm] = useArchiviertAm(meta.id);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-1 basis-[420px]">
           <div className="flex items-center gap-2 text-[13px] text-ink-500">
             <span className="marke h-[22px] bg-label-teal-bg px-2 text-[11px] text-label-teal-fg">{art}</span>
+            {archiviertAm && (
+              <span className="marke h-[22px] bg-label-grey-bg px-2 text-[11px] text-label-grey-fg">
+                <Archive className="size-3" strokeWidth={2} aria-hidden />
+                Archiviert
+              </span>
+            )}
             <span>{stand}</span>
+            {!gesperrt && (
+              <div className="-my-1.5 ml-auto flex">
+                <ProjektAktionen
+                  id={meta.id}
+                  titel={meta.titel}
+                  status={meta.status}
+                  ergebnis_label={meta.ergebnis_label}
+                  archiviert_am={archiviertAm ?? null}
+                  nachLoeschen="liste"
+                  onArchiviert={setArchiviertAm}
+                />
+              </div>
+            )}
           </div>
           <input
             className="mt-2 w-full rounded-lg bg-transparent text-[26px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950 outline-none -mx-1.5 px-1.5 hover:bg-[var(--bg-hover)] focus:bg-surface focus:shadow-[0_0_0_3px_var(--brand-tint)] disabled:hover:bg-transparent sm:text-[30px]"

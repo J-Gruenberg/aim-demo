@@ -6,6 +6,7 @@ import { BriefFusszeile, BriefKopfzeile, DRUCK_CSS, Seite, type AngebotKopf } fr
 import { DruckLeiste } from '@/components/DruckLeiste';
 import { mitPreisen, zaehlt } from '@/components/positionen/typen';
 import { euro, zahlFest, datum as datumFmt } from '@/lib/format';
+import { losStaffel } from '@/lib/engine/staffel';
 
 export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'bauteil' | 'zeichnung' }) {
   const d = await ladePositionsProjekt(id, typ);
@@ -16,6 +17,8 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
   const pos = mitPreisen(d.positionen, d.stamm).filter((x) => x.typ !== 'fremd' && !x.ansatz?.ausgeblendet);
   const netto = pos.filter(zaehlt).reduce((s, x) => s + Number(x.gp ?? 0), 0);
   const mwst = Math.round(netto * 19) / 100;
+  const staffel = typ === 'zeichnung' ? losStaffel(pos, d.stamm) : null;
+  const ohnePreis = (x: (typeof pos)[number]) => x.ep === null && x.ansatz?.art === 'zukauf';
   // Ausschreibung: alles muss freigegeben sein. Bauteile: nur offene, zu prüfende oder preislose Positionen zählen.
   const offen = pos.filter((x) => (typ === 'lv' ? x.status !== 'freigegeben' : x.status === 'offen' || x.status === 'pruefen' || x.ep === null)).length;
   return (
@@ -65,8 +68,8 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
                     <div className="font-medium">{x.kurztext}</div>
                     {typ !== 'lv' && x.langtext && <div className="whitespace-pre-line text-grau mt-0.5">{x.langtext}</div>}
                   </td>
-                  <td className="text-right zahl">{euro(x.ep)}</td>
-                  <td className="text-right zahl">{ep ? 'E.P.' : euro(x.gp)}</td>
+                  <td className="text-right zahl">{ohnePreis(x) ? 'folgt' : euro(x.ep)}</td>
+                  <td className="text-right zahl">{ohnePreis(x) ? 'folgt' : ep ? 'E.P.' : euro(x.gp)}</td>
                 </tr>
               );
             })}
@@ -77,6 +80,30 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
           <div className="flex justify-between"><span>19,00 % Mehrwertsteuer EUR</span><span className="zahl">{euro(mwst)}</span></div>
           <div className="flex justify-between font-bold border-t border-tinte pt-1"><span>Gesamtbetrag EUR</span><span className="zahl">{euro(netto + mwst)}</span></div>
         </div>
+        {staffel && (
+          <div className="mt-6 text-[10.5px] break-inside-avoid">
+            <div className="font-bold">Preis je Satz nach Losgröße, netto</div>
+            <table className="w-full border-collapse mt-1.5">
+              <thead>
+                <tr className="border-b border-tinte">
+                  <th className="text-left py-1">Losgröße</th>
+                  <th className="text-right">Preis je Satz</th>
+                  <th className="text-right">Los gesamt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffel.zeilen.map((z) => (
+                  <tr key={z.n} className="border-b border-linie">
+                    <td className="py-1">{z.n === 1 ? '1 Satz' : `ab ${z.n} Sätzen`}</td>
+                    <td className="text-right zahl">{euro(z.jeSatz)}</td>
+                    <td className="text-right zahl">{euro(z.jeSatz * z.n)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="text-grau mt-1">Rüsten und Programmieren fallen einmal je Los an und sind auf die Sätze verteilt.</div>
+          </div>
+        )}
         <p className="text-[11px] mt-8">{BRIEFKOPF.schluss}</p>
         <p className="text-[11px] mt-4">Mit freundlichen Grüßen</p>
         <div className="flex-1 min-h-8" />

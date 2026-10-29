@@ -17,7 +17,7 @@ export type GaebPosition = {
   bereich: string;
 };
 
-export type GaebLv = { projekt: string | null; bezeichnung: string | null; datenart: string | null; positionen: GaebPosition[] };
+export type GaebLv = { projekt: string | null; bezeichnung: string | null; lv: string | null; datenart: string | null; positionen: GaebPosition[] };
 
 type Knoten = Record<string, unknown>;
 
@@ -107,6 +107,8 @@ export function leseGaeb(xml: string): GaebLv {
   if (!vergabe) throw new Error('Kein Leistungsverzeichnis (Award) gefunden');
   const dp = text(finde(kinder(vergabe), 'DP'));
   const boq = finde(kinder(vergabe), 'BoQ');
+  const boqInfo = boq ? finde(kinder(boq), 'BoQInfo') : undefined;
+  const lv = boqInfo ? text(finde(kinder(boqInfo), 'LblBoQ')) || null : null;
   const positionen: GaebPosition[] = [];
   const body = boq ? finde(kinder(boq), 'BoQBody') : undefined;
 
@@ -151,7 +153,32 @@ export function leseGaeb(xml: string): GaebLv {
     }
   };
   gehe(body, [], []);
-  return { projekt, bezeichnung, datenart: dp || null, positionen };
+  return { projekt, bezeichnung, lv, datenart: dp || null, positionen };
+}
+
+/**
+ * Vorbemerkungen aus einer GAEB-DA-XML: Zusatztexte (AddText) und Hinweistexte (Remark) als lesbarer Text.
+ * Reicht für die Prüfung, wenn kein LV als PDF vorliegt.
+ */
+export function gaebVorbemerkungen(xml: string, max = 60_000): string {
+  const bloecke = [...xml.matchAll(/<(AddText|Remark)\b[^>]*>([\s\S]*?)<\/\1>/g)].map((m) => m[2]);
+  const lesbar = bloecke.map((b) =>
+    b
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|OutlineAddText|OutlineText|TextOutlTxt)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;|&#160;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n\s*\n+/g, '\n')
+      .trim(),
+  );
+  return lesbar.filter(Boolean).join('\n\n').slice(0, max);
 }
 
 /** Schreibt Einheitspreise in die Original-X83 und gibt eine X84 zurück. Preise je Item-ID. */

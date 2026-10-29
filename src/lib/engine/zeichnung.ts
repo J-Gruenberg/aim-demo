@@ -76,7 +76,9 @@ export const KOSTENSTELLEN = [
 
 export type Kostenstelle = (typeof KOSTENSTELLEN)[number]['key'];
 
-const KAUFTEIL = /\b(schraube|mutter|scheibe|hv[- ]?garnitur|garnitur|kopfbolzen|anker|d[üu]bel|niet|bolzen|gewindestange|din\s?\d{3,4}|iso\s?\d{3,4})\b/i;
+// Normteile und Zukaufteile: gehen nicht ins Stahlgewicht, sondern als eigene Position „Preis anfragen“
+const KAUFTEIL =
+  /\b(\w*schraube|mutter|scheibe|hv[- ]?garnitur|garnitur|kopfbolzen|anker|d[üu]bel|niet\w*|bolzen|gewindestange|din\s?\d{3,4}|iso\s?\d{3,4}|\w*verschluss|southco|happich|dicht\w*|\w*gummi\w*|scharnier|griff|stopfen|kappe|kabel\w*|verschraubung|clip|typenschild|aufkleber|kompressionsverschl\w*)\b/i;
 const BLECH = /^(bl|blech|pl|platte|riffel|tr[äa]nen|-)\b|^(bl|pl)\s?\d|\b(blech|platte|stirnplatte|kopfplatte|fu(ß|ss)platte|rippe|steife|knotenblech|lasche|futter)\b/i;
 const WALZ = /\b(he[abm]|hd|hl|ipe|ipn|upe|upn|u|l|t|rohr|ro|rro|qro|qr|rhs|shs|chs|vkt)\s?\d/i;
 const FLACH = /\b(fl|flach|flachstahl|rd|rund|rundstahl)\s?\d/i;
@@ -112,7 +114,8 @@ export function teilart(t: Pick<Teil, 'bezeichnung' | 'profil' | 'gewicht_kg' | 
   if (FLACH.test(t.profil)) return einzel !== null && einzel < 0.5 ? 'kleinteil' : 'profil_leicht';
   if (BLECH.test(t.profil) || BLECH.test(t.bezeichnung)) {
     const d = blechdicke(t.profil);
-    if (/futter|unterleg/i.test(text) || (einzel !== null && einzel < 1) || (d !== null && d < 5)) return 'kleinteil';
+    // Dünnblech ist nur dann Kleinteil, wenn es auch leicht ist: ein 3-mm-Deckel mit 8 kg ist ein richtiges Blechteil
+    if (/futter|unterleg/i.test(text) || (einzel !== null && einzel < 1) || (d !== null && d < 5 && (einzel === null || einzel < 2))) return 'kleinteil';
     if (d !== null && d >= 20) return 'blech_dick';
     return 'blech';
   }

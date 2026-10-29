@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Cpu, FileStack, SlidersHorizontal } from 'lucide-react';
+import { FileStack, SlidersHorizontal } from 'lucide-react';
 import { aktuellesProfil, supabaseServer } from '@/lib/supabase/server';
 import { euro } from '@/lib/format';
 import { HeroKnoepfe, NeuKarten } from '@/components/NeuKnoepfe';
@@ -23,11 +23,10 @@ export default async function Start() {
   const sb = await supabaseServer();
   const profil = await aktuellesProfil();
   const monatsAnfang = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const [{ data }, { data: kalkuliert }, { data: stamm }, { data: ki }] = await Promise.all([
-    sb.from('projekte').select('id,typ,titel,kunde,ort,status,ergebnis_label,summe_netto,updated_at,created_at').order('updated_at', { ascending: false }).limit(200),
+  const [{ data }, { data: kalkuliert }, { data: stamm }] = await Promise.all([
+    sb.from('projekte').select('id,typ,titel,kunde,ort,status,ergebnis_label,summe_netto,updated_at,created_at').is('archiviert_am', null).order('updated_at', { ascending: false }).limit(200),
     sb.from('positionen').select('sicherheit,gp,quelle,status,typ').in('status', ['berechnet', 'pruefen', 'freigegeben']).limit(5000),
     sb.from('stammdaten').select('bestaetigt'),
-    sb.from('ki_aufrufe').select('kosten_eur').gte('created_at', monatsAnfang),
   ]);
   const projekte = (data ?? []) as (KalkZeile & { created_at: string })[];
   const k = begruessung(profil?.name ?? null);
@@ -42,7 +41,6 @@ export default async function Start() {
   const beauftragt = projekte.filter((p) => p.ergebnis_label === 'beauftragt').length;
   const bestaetigt = (stamm ?? []).filter((s) => s.bestaetigt).length;
   const stammGesamt = (stamm ?? []).length;
-  const kiMonat = (ki ?? []).reduce((s, r) => s + Number(r.kosten_eur ?? 0), 0);
   const monat = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date());
 
   return (
@@ -77,7 +75,7 @@ export default async function Start() {
               <div className="karte flex flex-col items-center gap-2 px-6 py-10 text-center">
                 <span className="grid size-12 place-items-center rounded-full bg-brand-tint text-brand-strong"><FileStack className="size-5" strokeWidth={1.75} aria-hidden /></span>
                 <p className="text-[16px] font-bold">Noch keine Kalkulation</p>
-                <p className="max-w-[46ch] text-[14px] text-ink-600">Am schnellsten geht es mit „Zeichnung kalkulieren“. Keine Zeichnung zur Hand? In der neuen Anfrage liegen Beispielzeichnungen bereit.</p>
+                <p className="max-w-[46ch] text-[14px] text-ink-600">Am schnellsten geht es mit „Zeichnung kalkulieren“: Zeichnung ablegen, AIM liest und kalkuliert von selbst.</p>
               </div>
             ) : (
               <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
@@ -120,14 +118,6 @@ export default async function Start() {
             <Link href="/stammdaten" className="mt-3 inline-block text-[14px] font-bold text-brand-strong hover:underline">Stammdaten prüfen</Link>
           </section>
 
-          <section className="karte p-5">
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-9 place-items-center rounded-full bg-label-sky-bg text-label-sky-fg"><Cpu className="size-4" strokeWidth={1.75} aria-hidden /></span>
-              <h2 className="text-[16px] font-bold">KI-Verbrauch</h2>
-            </div>
-            <p className="zahl mt-3 text-[24px] font-semibold text-ink-950">{euro(kiMonat)}</p>
-            <p className="text-[14px] text-ink-600">im {monat}, rund 5 Cent je Zeichnungsblatt.</p>
-          </section>
         </aside>
       </div>
     </div>

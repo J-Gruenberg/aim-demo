@@ -1,6 +1,5 @@
 import { aktuellesProfil, supabaseServer } from '@/lib/supabase/server';
 import { KontoFormular } from './KontoFormular';
-import { euro } from '@/lib/format';
 import { kiBetrieb, nullSpeicherungPruefen } from '@/lib/ki';
 
 export const dynamic = 'force-dynamic';
@@ -9,11 +8,6 @@ export const metadata = { title: 'Konto' };
 export default async function KontoSeite() {
   const profil = await aktuellesProfil();
   const sb = await supabaseServer();
-  const monat = new Date();
-  monat.setDate(1);
-  monat.setHours(0, 0, 0, 0);
-  const { data: ki } = await sb.from('ki_aufrufe').select('kosten_eur').gte('created_at', monat.toISOString());
-  const kosten = (ki ?? []).reduce((s, r) => s + Number(r.kosten_eur ?? 0), 0);
   const betrieb = kiBetrieb();
   let schutz: { stufe: 'gut' | 'hinweis' | 'aus'; text: string; erklaerung: string };
   if (betrieb === 'eu') {
@@ -47,11 +41,6 @@ export default async function KontoSeite() {
         <h2 className="font-semibold">Datenexport</h2>
         <p className="text-sm text-grau">Alle Kalkulationen, Positionen, Stammdaten, Referenzen und das Änderungsprotokoll als eine Datei. Die Daten gehören Ihnen und sind jederzeit vollständig exportierbar.</p>
         <a href="/api/export" className="knopf-zweit">Vollexport herunterladen</a>
-      </section>
-      <section className="karte p-5 space-y-1">
-        <h2 className="font-semibold">KI-Kosten diesen Monat</h2>
-        <p className="zahl text-xl">{euro(kosten)}</p>
-        <p className="text-sm text-grau">Für das Auslesen von Leistungsverzeichnissen und Plänen. Jede Auswertung zeigt ihre Kosten auch im Projekt.</p>
       </section>
       <section className="karte p-5 space-y-1">
         <h2 className="font-semibold">Datenschutz der KI-Auswertung</h2>

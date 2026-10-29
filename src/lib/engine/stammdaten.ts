@@ -86,6 +86,7 @@ export const STAMMDATEN_DEFS: StammdatumDef[] = [
   { schluessel: 'zg_hv_faktor', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Faktor HV- und Stumpfnaht (Nahtvorbereitung, mehrlagig)', einheit: '×', wert: 1.8, quelle: AIM },
   { schluessel: 'zg_naht_je_anbauteil_m', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Nahtlänge je Anbauteil, wenn auf der Zeichnung nicht ablesbar', einheit: 'm', wert: 0.6, quelle: AIM },
   { schluessel: 'zg_richten_bg_h', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Richten, Schleifen, Maßkontrolle je Schweißbaugruppe (inkl. WPK)', einheit: 'h/Stk', wert: 0.5, quelle: AIM },
+  { schluessel: 'zg_ruesten_h', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Rüsten und Programmieren je Zeichnung, einmal je Los (für die Losgrößen-Staffel)', einheit: 'h', wert: 1.5, quelle: AIM },
   { schluessel: 'zg_richten_einzel_h', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Kontrolle, Kennzeichnen je Einzelprofil', einheit: 'h/Stk', wert: 0.1, quelle: AIM },
   { schluessel: 'zg_richten_klein_h', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Kontrolle, Kennzeichnen je Einzelblech', einheit: 'h/Stk', wert: 0.02, quelle: AIM },
   { schluessel: 'zg_transport_h_t', gruppe: 'Fertigung nach Zeichnung', bezeichnung: 'Innerbetrieblicher Transport, Verladen', einheit: 'h/t', wert: 1.5, quelle: AIM },

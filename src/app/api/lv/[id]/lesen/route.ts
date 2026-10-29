@@ -4,6 +4,7 @@ import { GaebAltformat, gaebText, leseGaeb } from '@/lib/gaeb';
 import { kiStrukturiert, KiFehler } from '@/lib/ki';
 import { SCHEMA_LESEN, SYSTEM_LESEN, SYSTEM_PLAN, type GelesenePosition } from '@/lib/lv-ki';
 import { einheitNorm, mengenAusText } from '@/lib/lv-text';
+import { automatischBenennen } from '@/lib/benennen';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -42,8 +43,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         ansatz: { bereich: p.bereich, bedarf: p.bedarf, alternativ: p.alternativ, pauschal: p.pauschal },
       }));
       for (let i = 0; i < zeilen.length; i += 500) await sb.from('positionen').insert(zeilen.slice(i, i + 500));
-      await sb.from('projekte').update({ ergebnis: { lv_titel: lv.bezeichnung, lv_projekt: lv.projekt, gaeb_datei: datei_id } }).eq('id', id);
-      return NextResponse.json({ fertig: true, neu: zeilen.length, seiten: null, naechste: null, art: 'gaeb' });
+      await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'lv_titel', p_wert: lv.bezeichnung });
+      await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'lv_projekt', p_wert: lv.projekt });
+      await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'gaeb_datei', p_wert: datei_id });
+      // Name sofort aus der GAEB-Datei, die Prüfung macht ihn danach noch sprechender
+      const benannt = await automatischBenennen(sb, id, { titel: [lv.bezeichnung || lv.projekt, lv.lv].filter(Boolean).join(', ') });
+      return NextResponse.json({ fertig: true, neu: zeilen.length, seiten: null, naechste: null, art: 'gaeb', benannt });
     } catch (e) {
       if (e instanceof GaebAltformat) return NextResponse.json({ fehler: e.message }, { status: 422 });
       return NextResponse.json({ fehler: `Die GAEB-Datei ließ sich nicht lesen (${(e as Error).message}).` }, { status: 422 });
@@ -89,7 +94,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const { daten, kostenEur } = await kiStrukturiert<{ positionen: GelesenePosition[]; hinweise: string[] }>({
+    const { daten, kostenEur } = await kiStrukturiert<{ positionen: GelesenePosition[]; hinweise: string[]; projekt: { titel: string; auftraggeber: string; baustelle: string } }>({
       sb,
       projektId: id,
       zweck: `${istPlan ? 'Zeichnung lesen' : 'LV lesen'} ${datei.name} S. ${von}-${bis}`,
@@ -119,11 +124,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (daten.hinweise.length) {
       const { data: pr } = await sb.from('projekte').select('ergebnis').eq('id', id).single();
       const alt = (pr?.ergebnis?.hinweise as string[] | undefined) ?? [];
-      await sb.from('projekte').update({ ergebnis: { ...(pr?.ergebnis ?? {}), hinweise: Array.from(new Set([...alt, ...daten.hinweise])).slice(0, 40) } }).eq('id', id);
+      await sb.rpc('ergebnis_setzen', { p_id: id, p_schluessel: 'hinweise', p_wert: Array.from(new Set([...alt, ...daten.hinweise])).slice(0, 40) });
     }
+    const benannt = daten.projekt ? await automatischBenennen(sb, id, { titel: daten.projekt.titel, kunde: daten.projekt.auftraggeber, ort: daten.projekt.baustelle }) : null;
     // Fortschritt merken: der Browser kann bei abgerissener Verbindung hier weitermachen
     await sb.from('dateien').update({ seiten: totalPages, gelesen_bis: bis }).eq('id', datei_id);
-    return NextResponse.json({ fertig: bis >= totalPages, neu: neu.length, seiten: totalPages, naechste: bis < totalPages ? bis + 1 : null, kosten: kostenEur, art: istScan ? 'scan' : 'text' });
+    return NextResponse.json({ fertig: bis >= totalPages, neu: neu.length, seiten: totalPages, naechste: bis < totalPages ? bis + 1 : null, kosten: kostenEur, art: istScan ? 'scan' : 'text', benannt, positionen: neu.map((z) => ({ oz: z.oz, kurztext: z.kurztext, menge: z.menge, einheit: z.einheit })) });
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Beim Lesen ist ein Fehler aufgetreten.';
     console.error('lesen', e);

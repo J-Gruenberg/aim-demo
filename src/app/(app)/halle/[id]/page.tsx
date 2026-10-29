@@ -1,9 +1,14 @@
 import { notFound } from 'next/navigation';
 import { supabaseServer, aktuellesProfil } from '@/lib/supabase/server';
 import { ladeReferenzen, ladeStammdaten, referenzPunkte } from '@/lib/daten';
+import { projektTitel } from '@/lib/projekt-laden';
 import { HallenEditor } from './HallenEditor';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  return projektTitel((await params).id);
+}
 
 export default async function HallenSeite({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

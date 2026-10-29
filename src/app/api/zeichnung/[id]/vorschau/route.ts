@@ -5,16 +5,17 @@ import { vorschauPfad } from '@/lib/vorschau';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-/** Rendert Blatt 1 einer Zeichnung als kleines JPEG, damit die Zeichnung in der Übersicht als Bild erscheint. */
+/** Rendert ein Blatt einer Zeichnung (Standard Blatt 1) als JPEG, für die Übersicht und die Live-Ansicht. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profil = await aktuellesProfil();
   if (!profil || profil.rolle === 'leser') return NextResponse.json({ fehler: 'Keine Berechtigung.' }, { status: 403 });
-  const { datei_id } = (await req.json()) as { datei_id: string };
+  const { datei_id, seite: gewuenscht = 1 } = (await req.json()) as { datei_id: string; seite?: number };
+  const seite = Math.max(1, Math.floor(Number(gewuenscht) || 1));
   const sb = await supabaseServer();
   const { data: datei } = await sb.from('dateien').select('id,pfad,name').eq('id', datei_id).eq('projekt_id', id).maybeSingle();
   if (!datei) return NextResponse.json({ fehler: 'Datei nicht gefunden.' }, { status: 404 });
-  const ziel = vorschauPfad(datei.pfad);
+  const ziel = vorschauPfad(datei.pfad, seite);
 
   const vorhanden = await sb.storage.from('unterlagen').createSignedUrl(ziel, 3600);
   if (vorhanden.data?.signedUrl) return NextResponse.json({ url: vorhanden.data.signedUrl });
@@ -30,11 +31,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const { getDocumentProxy, renderPageAsImage } = await import('unpdf');
       const daten = new Uint8Array(buf);
       const pdf = await getDocumentProxy(daten.slice());
-      const vp = (await pdf.getPage(1)).getViewport({ scale: 1 });
+      if (seite > pdf.numPages) return NextResponse.json({ fehler: 'Dieses Blatt gibt es nicht.' }, { status: 404 });
+      const vp = (await pdf.getPage(seite)).getViewport({ scale: 1 });
       const scale = 1400 / Math.max(vp.width, vp.height, 1);
-      const png = await renderPageAsImage(daten.slice(), 1, { canvasImport: () => import('@napi-rs/canvas'), scale });
+      const png = await renderPageAsImage(daten.slice(), seite, { canvasImport: () => import('@napi-rs/canvas'), scale });
       bild = await loadImage(Buffer.from(png as ArrayBuffer));
     } else {
+      if (seite > 1) return NextResponse.json({ fehler: 'Dieses Blatt gibt es nicht.' }, { status: 404 });
       bild = await loadImage(buf);
     }
     const f = Math.min(1, 1400 / Math.max(bild.width, bild.height));
