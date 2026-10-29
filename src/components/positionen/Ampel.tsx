@@ -38,6 +38,10 @@ export function SicherheitsAmpel({ p }: { p: Position }) {
   if (p.status === 'freigegeben') {
     return <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ok"><CircleCheck className="size-4" strokeWidth={2} aria-hidden />Freigegeben</span>;
   }
+  // Kaufteile und Fremdleistungen ohne Lieferantenpreis: nicht unsicher, nur noch offen
+  if (p.ep === null) {
+    return <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#FEF6C7] px-2.5 text-[13px] font-semibold text-[#7A5200]"><span className="size-2 rounded-full bg-[#EAB308]" />Preis fehlt</span>;
+  }
   const s = sicherheitVon(p);
   const st = stufe(s);
   return (

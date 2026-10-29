@@ -186,7 +186,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
 
   const sichtbar = useMemo(() => {
     let l = pos;
-    if (filter === 'pruefen') l = l.filter((p) => p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5);
+    if (filter === 'pruefen') l = l.filter((p) => p.status !== 'offen' && p.status !== 'freigegeben' && p.ep !== null && sicherheitVon(p) < 0.5);
     if (filter === 'offen') l = l.filter((p) => p.status === 'offen');
     if (filter === 'freigegeben') l = l.filter((p) => p.status === 'freigegeben');
     if (filter === 'fremd') l = l.filter((p) => p.typ === 'fremd' || p.ansatz?.ausgeblendet);
@@ -774,7 +774,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const offen = pos.find((p) => p.id === offenId) ?? null;
   const alleFreigebbar = pos.filter((p) => (p.status === 'berechnet' || p.status === 'pruefen') && p.ep !== null && p.typ !== 'fremd' && !p.ansatz?.ausgeblendet);
   const sch = schnitt(pos.filter(zaehlt));
-  const unsicher = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5).length;
+  const unsicher = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && p.status !== 'freigegeben' && p.ep !== null && sicherheitVon(p) < 0.5).length;
   const sicherAnzahl = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && sicherheitVon(p) >= 0.65).length;
 
   const kritisch = (pruefung?.hinweise.filter((h) => h.stufe === 'kritisch').length ?? 0) + (abgleich?.widersprueche?.filter((w) => w.stufe === 'kritisch').length ?? 0);
