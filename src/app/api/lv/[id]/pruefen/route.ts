@@ -77,7 +77,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   ];
 
   try {
-    const { daten } = await kiStrukturiert<PruefungKi>({ sb, projektId: id, zweck: 'Vorbemerkungen prüfen, Bieterfragen', stufe: 'standard', system: SYSTEM_PRUEFUNG, inhalt, schema: SCHEMA_PRUEFUNG, maxTokens: 20000 });
+    const { daten } = await kiStrukturiert<PruefungKi>({ sb, projektId: id, zweck: 'Vorbemerkungen prüfen, Bieterfragen', stufe: 'standard', system: SYSTEM_PRUEFUNG, inhalt, schema: SCHEMA_PRUEFUNG, maxTokens: 32000 });
     const pruefung: Pruefung = {
       datum: new Date().toISOString(),
       zusammenfassung: daten.zusammenfassung,
