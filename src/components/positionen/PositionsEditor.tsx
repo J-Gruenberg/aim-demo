@@ -1246,7 +1246,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                         <div className="mt-0.5 flex flex-wrap gap-x-2 text-[13px] text-ink-500">
                           {p.ansatz?.bereich && <span className="truncate max-w-[340px]">{p.ansatz.bereich}</span>}
                           {p.ansatz?.art === 'baugruppe' && <BaugruppeKurz p={p} stamm={stamm} />}
-                          {(p.ansatz as { zeichnung_fehlt?: string } | null)?.zeichnung_fehlt && <span className="font-semibold text-[#B91C1C]">Zeichnung {(p.ansatz as { zeichnung_fehlt?: string }).zeichnung_fehlt} fehlt</span>}
+                          {(p.ansatz as { zeichnung_fehlt?: string } | null)?.zeichnung_fehlt && <span className="font-semibold text-[#B91C1C]">Zeichnung {(p.ansatz as { zeichnung_fehlt?: string }).zeichnung_fehlt === 'ohne Nummer' ? '' : `${(p.ansatz as { zeichnung_fehlt?: string }).zeichnung_fehlt} `}fehlt</span>}
                           {(p.ansatz as { nur_gewicht?: boolean } | null)?.nur_gewicht && <span className="font-semibold text-[#9A3412]">über Gewicht geschätzt, rund {zahl(Number((p.ansatz as { kg_geschaetzt?: number }).kg_geschaetzt ?? 0), 0)} kg je Stück</span>}
                           {p.ansatz?.art === 'zukauf' && p.ep === null && <span className="font-semibold text-[#9A3412]">Preis anfragen</span>}
                           {p.ansatz?.bedarf && <span className="text-gelb">Bedarfsposition</span>}

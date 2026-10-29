@@ -71,7 +71,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   let daten: SatzKi;
   try {
-    ({ daten } = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text: eingabe }], schema: SCHEMA_SATZ, maxTokens: 8000 }));
+    ({ daten } = await kiStrukturiert<SatzKi>({ sb, projektId: id, zweck: 'Zeichnungssatz ordnen', stufe: 'standard', system: SYSTEM_SATZ, inhalt: [{ type: 'text', text: eingabe }], schema: SCHEMA_SATZ, maxTokens: 16000 }));
   } catch (e) {
     const msg = e instanceof KiFehler ? e.nutzerText : 'Der Zeichnungssatz ließ sich nicht ordnen.';
     console.error('satz', e);
@@ -79,6 +79,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   // 1. Gelesene Positionen anpassen
+  // Gibt es im Satz echte Einzelzeichnungen, ist jede verbliebene reine Gewichtsschätzung eine fehlende Zeichnung.
+  // Bei einer reinen Übersichtszeichnung bleibt es bei „über Gewicht geschätzt“.
+  const detailliert = gelesen.some((p) => (p.ansatz as { art?: string; nur_gewicht?: boolean } | null)?.art === 'baugruppe' && !(p.ansatz as { nur_gewicht?: boolean }).nur_gewicht);
   let geaendert = 0;
   for (const k of daten.positionen) {
     const p = gelesen.find((x) => x.id === k.id);
@@ -90,7 +93,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       geaendert++;
       continue;
     }
-    const fehlt = k.zeichnung_fehlt?.trim();
+    const fehlt = k.zeichnung_fehlt?.trim() || (detailliert && a.nur_gewicht ? 'ohne Nummer' : '');
     if (fehlt) a.zeichnung_fehlt = fehlt;
     const menge = k.menge > 0 ? k.menge : Number(p.menge ?? 1) || 1;
     let ep: number | null = null;

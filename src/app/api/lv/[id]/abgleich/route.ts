@@ -54,7 +54,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   });
 
   try {
-    const { daten, kostenEur } = await kiStrukturiert<AbgleichKi>({ sb, projektId: id, zweck: `Abgleich Plan gegen LV (${namen.length} Pläne)`, stufe: 'standard', system: SYSTEM_ABGLEICH, inhalt, schema: SCHEMA_ABGLEICH, maxTokens: 12000 });
+    const { daten, kostenEur } = await kiStrukturiert<AbgleichKi>({ sb, projektId: id, zweck: `Abgleich Plan gegen LV (${namen.length} Pläne)`, stufe: 'standard', system: SYSTEM_ABGLEICH, inhalt, schema: SCHEMA_ABGLEICH, maxTokens: 20000 });
     const abgleich: Abgleich = {
       datum: new Date().toISOString(),
       plaene: namen,
