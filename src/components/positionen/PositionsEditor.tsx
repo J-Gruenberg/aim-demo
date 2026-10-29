@@ -174,6 +174,13 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     insArchiv(ids);
   }
 
+  async function freigabeZuruecknehmen() {
+    const ids = pos.filter((p) => p.status === 'freigegeben').map((p) => p.id);
+    const neu = mitPreisen(pos.map((p) => (ids.includes(p.id) ? { ...p, status: (sicherheitVon(p) >= 0.9 ? 'berechnet' : 'pruefen') as Position['status'] } : p)), stamm);
+    setPos(neu);
+    await speichereZeilen(neu.filter((p) => ids.includes(p.id)), neu);
+  }
+
   async function planAbgleich() {
     setLaeuft('Pläne werden gegen das LV geprüft … (dauert bis zu zwei Minuten)');
     try {
@@ -561,7 +568,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   }
 
   const offen = pos.find((p) => p.id === offenId) ?? null;
-  const freigebbar = pos.filter((p) => zaehlt(p) && (p.status === 'berechnet' || p.status === 'pruefen') && sicherheitVon(p) >= 0.8 && p.ep !== null && !pruefePosition(p).some((f) => f.stufe === 'warnung'));
+  const alleFreigebbar = pos.filter((p) => (p.status === 'berechnet' || p.status === 'pruefen') && p.ep !== null && p.typ !== 'fremd' && !p.ansatz?.ausgeblendet);
   const sch = schnitt(pos.filter(zaehlt));
   const unsicher = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && p.status !== 'freigegeben' && sicherheitVon(p) < 0.5).length;
   const sicherAnzahl = pos.filter((p) => zaehlt(p) && p.status !== 'offen' && sicherheitVon(p) >= 0.65).length;
@@ -983,10 +990,20 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 ))}
               </div>
             )}
-            {darfSchreiben && freigebbar.length > 0 && (
-              <button className="knopf-zweit knopf-klein" onClick={() => confirm(`${freigebbar.length} sehr sichere Positionen (ab 80 %) mit zusammen ${euro(freigebbar.reduce((x, p) => x + Number(p.gp ?? 0), 0), true)} freigeben?`) && freigeben(freigebbar.map((p) => p.id))}>
-                {freigebbar.length} sichere freigeben
+            {darfSchreiben && alleFreigebbar.length > 0 && (
+              <button
+                className="knopf-primaer knopf-klein"
+                onClick={() => {
+                  const summe = alleFreigebbar.reduce((x, p) => x + (zaehlt(p) ? Number(p.gp ?? 0) : 0), 0);
+                  const wenig = alleFreigebbar.filter((p) => sicherheitVon(p) < 0.5).length;
+                  if (confirm(`Alle ${alleFreigebbar.length} kalkulierten Positionen mit zusammen ${euro(summe, true)} freigeben?${wenig ? `\n\n${wenig} davon liegen unter 50 % Sicherheit.` : ''}`)) freigeben(alleFreigebbar.map((p) => p.id));
+                }}
+              >
+                <CircleCheck className="size-4" strokeWidth={2} aria-hidden /> Alle freigeben
               </button>
+            )}
+            {darfSchreiben && alleFreigebbar.length === 0 && s.frei > 0 && (
+              <button className="knopf-leise knopf-klein" onClick={() => confirm('Alle Freigaben zurücknehmen? Das Angebot zeigt dann wieder „Entwurf“.') && freigabeZuruecknehmen()}>Freigaben zurücknehmen</button>
             )}
             {darfSchreiben && pos.length > 0 && <button className="knopf-leise knopf-klein" onClick={neuRechnen} title="Alle Preise mit den aktuellen Stammdaten neu rechnen">Neu rechnen</button>}
           </div>
