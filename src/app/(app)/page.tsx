@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 function begruessung(name: string | null) {
   const jetzt = new Date();
-  const stunde = Number(new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: 'numeric', hourCycle: 'h23' }).format(jetzt));
+  const stunde = Number(new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', hourCycle: 'h23' }).formatToParts(jetzt).find((t) => t.type === 'hour')?.value ?? 12);
   const gruss = stunde < 11 ? 'Guten Morgen' : stunde < 18 ? 'Guten Tag' : 'Guten Abend';
   const vorname = (name ?? '').split(/\s+/)[0];
   return {

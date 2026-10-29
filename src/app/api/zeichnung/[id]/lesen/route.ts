@@ -9,6 +9,14 @@ import { summen, type Position } from '@/components/positionen/typen';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
+/** Kurztext ohne Dopplung: das Hauptprofil nur anhängen, wenn es nicht schon in der Benennung steht. */
+function kurztextAus(benennung: string, profil?: string, abmessung?: string | null) {
+  const norm = (x: string) => x.toLowerCase().replace(/[\s*×x-]/g, '');
+  const p = profil ? profil.replace(/\*/g, '×') : '';
+  const mitProfil = p && !norm(benennung).includes(norm(p)) ? `${benennung} ${p}` : benennung;
+  return `${mitProfil}${abmessung ? `, ${abmessung}` : ''}`.slice(0, 200);
+}
+
 /** Liest ein Blatt einer Werkstattzeichnung und legt je Position eine kalkulierte Baugruppe an. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           projekt_id: id,
           sort,
           oz: b.pos,
-          kurztext: `${b.benennung}${haupt ? ` ${haupt.profil.replace(/\*/g, '×')}` : ''}${b.abmessung ? `, ${b.abmessung}` : ''}`.slice(0, 200),
+          kurztext: kurztextAus(b.benennung, haupt?.profil, b.abmessung),
           langtext: stuecklistenText(ansatz),
           menge,
           einheit: 'Stck',

@@ -506,7 +506,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           <section aria-label="Summe und Kennzahlen" className="aim-hero grid min-w-0 gap-6 px-5 py-6 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:px-9">
             <div className="min-w-0">
               <p className="text-[14px] font-semibold text-white/75">Summe netto</p>
-              <p className="zahl mt-1 text-[40px] font-semibold leading-none tracking-[-0.02em] sm:text-[52px]">{euro(s.gesamt, true)}</p>
+              <p className="mt-1 text-[44px] font-extrabold leading-none tracking-[-0.03em] sm:text-[56px]">{euro(s.gesamt, true)}</p>
               <p className="mt-3 text-[16px] text-white/85 sm:text-[18px] [&_b]:font-bold [&_b]:text-white">
                 {!s.anzahl ? (
                   modus === 'zeichnung' ? 'Noch keine Positionen. Legen Sie unten Zeichnungen ab.' : 'Noch keine Positionen.'
@@ -857,7 +857,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                   {modus !== 'zeichnung' && <th className="w-36">Ansatz</th>}
                   <th className="text-right w-28">EP</th>
                   <th className="text-right w-32">GP</th>
-                  <th className="w-28">Status</th>
+                  <th className="w-36">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -883,7 +883,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       <td>
                         <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${STATUS[p.status].text}`}><span className={`w-2 h-2 rounded-full ${STATUS[p.status].punkt}`} />{STATUS[p.status].label}</span>
                         {pruefePosition(p).some((f) => f.stufe === 'warnung') && <TriangleAlert className="ml-1 inline size-3.5 text-check" strokeWidth={2} aria-label={pruefePosition(p).map((f) => f.text).join(' ')} />}
-                        {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="text-[12px] text-hell mt-0.5">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
+                        {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="mt-0.5 whitespace-nowrap text-[12px] text-ink-500">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
                       </td>
                     </tr>
                   );
