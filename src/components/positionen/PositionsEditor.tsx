@@ -78,7 +78,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   /** Live-Ansicht: neuer Lauf, neuer Schritt, neuer Eintrag. Nur echte Ergebnisse landen im Protokoll. */
   function liveBeginnen(titel: string, phase: LivePhase) {
     const t = Date.now();
-    setLive({ phase, titel, start: t, beginn: t, laeuft: true, ereignisse: [], bild: null, datei: null, blatt: null, blaetter: null, ende: null });
+    setLive({ phase, titel, start: t, beginn: t, laeuft: true, ereignisse: [], bild: null, datei: null, blatt: null, blaetter: null, ende: null, aktiv: null });
   }
   function liveSchritt(patch: Partial<LiveZustand> & { titel: string; phase: LivePhase }) {
     setLive((l) => (l ? { ...l, ...patch, start: Date.now(), laeuft: true } : { start: Date.now(), beginn: Date.now(), laeuft: true, ereignisse: [], ...patch }));
@@ -89,7 +89,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     setLive((l) => (l ? { ...l, ereignisse: [...l.ereignisse, neu].slice(-300) } : l));
   }
   function liveEnde(titel?: string) {
-    setLive((l) => (l ? { ...l, laeuft: false, phase: 'fertig', titel: titel ?? l.titel, ende: Date.now() } : l));
+    setLive((l) => (l ? { ...l, laeuft: false, phase: 'fertig', titel: titel ?? l.titel, ende: Date.now(), aktiv: null } : l));
   }
   /** Bild des Blatts, das gerade gelesen wird (wird bei Bedarf einmal gerendert). */
   async function liveBild(d: Datei, seite: number) {
@@ -285,7 +285,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
       if (ergebnis) {
         setPruefung(ergebnis);
         const k = ergebnis.hinweise.filter((h) => h.stufe === 'kritisch');
-        liveLog({ art: 'erfolg', titel: `Vorbemerkungen geprüft: ${k.length} kritisch, ${ergebnis.hinweise.length - k.length} weitere Hinweise, ${ergebnis.bieterfragen.length} Bieterfragen` });
+        liveLog({ art: 'erfolg', titel: `Vorbemerkungen geprüft: ${ergebnis.bieterfragen.length} Bieterfragen, ${k.length} wichtige und ${ergebnis.hinweise.length - k.length} weitere Hinweise` });
         k.slice(0, 6).forEach((h) => liveLog({ art: 'hinweis', titel: h.titel, text: h.folge }));
         if (!still) zeige(true, 'Prüfung fertig. Ergebnis im Prüfbericht.');
       }
@@ -608,7 +608,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
     for (let i = 0; i < ziel.length; i += paket) {
       setLaeuft(`Kalkuliere ${Math.min(i + paket, ziel.length)} von ${ziel.length} Positionen …`);
       const ids = ziel.slice(i, i + paket);
-      liveSchritt({ titel: `Kalkuliere Positionen ${i + 1} bis ${Math.min(i + paket, ziel.length)} von ${ziel.length}`, phase: 'kalkulieren', bild: null, blatt: null, blaetter: null, datei: null });
+      liveSchritt({ titel: `Kalkuliere Positionen ${i + 1} bis ${Math.min(i + paket, ziel.length)} von ${ziel.length}`, phase: 'kalkulieren', bild: null, blatt: null, blaetter: null, datei: null, aktiv: ids });
       let r: Response | null = null;
       let j: { fehler?: string; gesetzt?: number } = {};
       try {
@@ -737,8 +737,8 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         await kalkulieren(offen, false, true);
       }
       setSchritt(`Schritt ${nr + 2} von ${schritte}: Vorbemerkungen und Pläne werden geprüft`);
-      setLaeuft('Prüfbericht wird fertig: kritische Hinweise, Widersprüche, Bieterfragen …');
-      liveSchritt({ titel: 'Prüfbericht wird erstellt', phase: 'pruefen', bild: null, datei: null, blatt: null, blaetter: null });
+      setLaeuft('Prüfbericht wird fertig: Bieterfragen, wichtige Hinweise, Widersprüche …');
+      liveSchritt({ titel: 'Prüfbericht wird erstellt', phase: 'pruefen', bild: null, datei: null, blatt: null, blaetter: null, aktiv: null });
       await pruefLauf;
       const ende = await neuLaden();
       const sch = schnitt(ende.filter(zaehlt));
@@ -803,7 +803,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           { label: 'Ø Sicherheit', wert: sch !== null ? `${Math.round(sch * 100)} %` : '–', sub: s.offen ? `${s.offen} noch offen` : 'alle kalkuliert' },
           { label: 'Fremdgewerke', wert: `${s.fremd}`, sub: 'nicht in der Summe' },
           modus === 'lv' && pruefung
-            ? { label: 'Prüfbericht', wert: `${kritisch} kritisch`, sub: `${fragenAnzahl} Bieterfragen vorbereitet`, warn: kritisch > 0 }
+            ? { label: 'Bieterfragen', wert: `${fragenAnzahl} vorbereitet`, sub: kritisch ? `${kritisch} wichtige Hinweise im Prüfbericht` : 'Prüfbericht ohne wichtige Hinweise' }
             : { label: 'Freigegeben', wert: euro(s.freigegeben, true), sub: `${s.frei} von ${s.anzahl} Positionen` },
         ];
 
@@ -1141,30 +1141,6 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         </section>
       )}
 
-      {modus === 'lv' && (pos.length > 0 || pruefung || hinweise.length > 0) && (
-        <Pruefbericht
-          pruefung={pruefung}
-          abgleich={abgleich}
-          altHinweise={hinweise}
-          befunde={bericht.je}
-          positionen={pos}
-          pruefLaeuft={pruefLaeuft}
-          abgleichLaeuft={abgleichLaeuft}
-          hatPlaene={dateien.some((d) => d.art === 'plan')}
-          darfSchreiben={darfSchreiben}
-          gesperrt={!!laeuft && !pruefLaeuft && !abgleichLaeuft}
-          onPruefen={() => {
-            liveBeginnen('Vorbemerkungen werden geprüft', 'pruefen');
-            void pruefen(false, !!pruefung).then(() => liveEnde('Prüfung fertig'));
-          }}
-          onAbgleich={() => {
-            liveBeginnen('Pläne werden gegen das LV geprüft', 'pruefen');
-            void planAbgleich(false, !!abgleich).then(() => liveEnde('Plan gegen LV fertig'));
-          }}
-          onPosition={(id) => setOffenId(id)}
-        />
-      )}
-
       <section aria-labelledby="pos" className="flex min-w-0 flex-col gap-3">
         <h2 id="pos" className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.01em]">
           Positionen
@@ -1278,11 +1254,51 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         </div>
       </section>
 
+      {modus === 'lv' && (pos.length > 0 || pruefung || hinweise.length > 0) && (
+        <Pruefbericht
+          pruefung={pruefung}
+          abgleich={abgleich}
+          altHinweise={hinweise}
+          befunde={bericht.je}
+          positionen={pos}
+          pruefLaeuft={pruefLaeuft}
+          abgleichLaeuft={abgleichLaeuft}
+          hatPlaene={dateien.some((d) => d.art === 'plan')}
+          darfSchreiben={darfSchreiben}
+          gesperrt={!!laeuft && !pruefLaeuft && !abgleichLaeuft}
+          onPruefen={() => {
+            liveBeginnen('Vorbemerkungen werden geprüft', 'pruefen');
+            void pruefen(false, !!pruefung).then(() => liveEnde('Prüfung fertig'));
+          }}
+          onAbgleich={() => {
+            liveBeginnen('Pläne werden gegen das LV geprüft', 'pruefen');
+            void planAbgleich(false, !!abgleich).then(() => liveEnde('Plan gegen LV fertig'));
+          }}
+          onPosition={(id) => setOffenId(id)}
+        />
+      )}
+
       {liveOffen && live && (
         <LiveAnsicht
           zustand={live}
           modus={modus}
           kennzahlen={{ positionen: pos.filter((p) => p.status !== 'offen').length, summe: s.gesamt, sicherheit: sch }}
+          zeilen={
+            modus === 'lv'
+              ? pos.map((p) => ({
+                  id: p.id,
+                  oz: p.oz,
+                  kurztext: p.kurztext,
+                  menge: p.menge,
+                  einheit: p.einheit,
+                  ep: p.ep,
+                  gp: p.gp,
+                  fertig: p.status !== 'offen',
+                  sicherheit: p.status !== 'offen' && p.ep !== null ? sicherheitVon(p) : null,
+                  hinweis: p.typ === 'fremd' ? 'Fremdgewerk' : p.ansatz?.bedarf ? 'Bedarf' : p.ansatz?.alternativ ? 'Wahl' : p.ansatz?.ausgeblendet ? 'Ausgeblendet' : null,
+                }))
+              : undefined
+          }
           onSchliessen={liveSchliessen}
         />
       )}

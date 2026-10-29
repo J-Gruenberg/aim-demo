@@ -22,7 +22,8 @@ import type { Abgleich, Bieterfrage, HinweisStufe, HinweisThema, Position, Pruef
 import type { Befund } from '@/lib/pruefung';
 
 const STUFE: Record<HinweisStufe, { label: string; punkt: string; pill: string; kante: string; kachel: string }> = {
-  kritisch: { label: 'Kritisch', punkt: 'bg-[#DC2626]', pill: 'bg-[#FEE2E2] text-[#991B1B]', kante: 'before:bg-[#DC2626]', kachel: 'text-[#991B1B]' },
+  // Ruhiges Orange statt Alarmrot: wichtig heißt hier „kostet Geld, wenn man es übersieht“
+  kritisch: { label: 'Wichtig', punkt: 'bg-[#F97316]', pill: 'bg-[#FFEDD5] text-[#9A3412]', kante: 'before:bg-[#F97316]', kachel: 'text-[#9A3412]' },
   beachten: { label: 'Beachten', punkt: 'bg-[#EAB308]', pill: 'bg-[#FEF6C7] text-[#7A5200]', kante: 'before:bg-[#EAB308]', kachel: 'text-[#7A5200]' },
   info: { label: 'Info', punkt: 'bg-[#22A565]', pill: 'bg-[#DCFCE7] text-[#14532D]', kante: 'before:bg-[#22A565]', kachel: 'text-[#14532D]' },
 };
@@ -92,7 +93,7 @@ export function Pruefbericht({
         <div className="min-w-0">
           <h2 id="pruefbericht" className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.01em]">
             Prüfbericht
-            {kritischGesamt > 0 && <span className="inline-flex h-[22px] items-center rounded-full bg-[#DC2626] px-2 font-mono text-[12px] font-medium text-white">{kritischGesamt} kritisch</span>}
+            {kritischGesamt > 0 && <span className="inline-flex h-[22px] items-center rounded-full bg-[#FFEDD5] px-2 font-mono text-[12px] font-medium text-[#9A3412]">{kritischGesamt} wichtig</span>}
           </h2>
           <p className="mt-0.5 text-[14px] text-ink-600">
             {laeuft
@@ -118,9 +119,27 @@ export function Pruefbericht({
         )}
       </div>
 
+      {(pruefung?.zusammenfassung || abgleich?.zusammenfassung) && (
+        <div className="rounded-2xl border border-brand-tint-2 px-5 py-4" style={{ background: 'var(--brand-gradient-soft)' }}>
+          <p className="flex items-center gap-2 text-[13px] font-bold text-brand-strong"><Sparkles className="size-4" strokeWidth={1.75} aria-hidden />Auf einen Blick</p>
+          {pruefung?.zusammenfassung && <p className="mt-1.5 text-[15px] leading-relaxed text-ink-950">{pruefung.zusammenfassung}</p>}
+          {abgleich?.zusammenfassung && <p className="mt-1.5 text-[15px] leading-relaxed text-ink-950">{abgleich.zusammenfassung}</p>}
+        </div>
+      )}
+
+      {/* Bieterfragen */}
+      {fragen.length > 0 && <Bieterfragen fragen={fragen} />}
+
+      {pruefung && (
+        <div className="mt-2">
+          <h3 className="text-[16px] font-bold text-ink-950">Hinweise aus Vorbemerkungen und Plänen</h3>
+          <p className="text-[13px] text-ink-600">Was beim Kalkulieren Geld kostet, wenn man es übersieht. Wichtiges zuerst.</p>
+        </div>
+      )}
+
       {/* Ampel-Kacheln, zugleich Filter */}
       {pruefung && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3">
           {(['kritisch', 'beachten', 'info'] as HinweisStufe[]).map((st) => (
             <button
               key={st}
@@ -132,25 +151,10 @@ export function Pruefbericht({
               <span className={`size-3.5 shrink-0 rounded-full ${STUFE[st].punkt}`} />
               <span>
                 <span className={`block text-[26px] font-extrabold leading-none tracking-[-0.02em] ${STUFE[st].kachel}`}>{zahlen[st]}</span>
-                <span className="mt-1 block text-[13px] font-semibold text-ink-600">{st === 'kritisch' ? 'Kritisch' : st === 'beachten' ? 'Beachten' : 'Info'}</span>
+                <span className="mt-1 block text-[13px] font-semibold text-ink-600">{STUFE[st].label}</span>
               </span>
             </button>
           ))}
-          <a href="#bieterfragen" className="karte flex items-center gap-3 p-4 transition-[border-color] hover:border-line-strong">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-tint text-brand-strong"><MessageSquareText className="size-4" strokeWidth={1.75} aria-hidden /></span>
-            <span>
-              <span className="block text-[26px] font-extrabold leading-none tracking-[-0.02em] text-brand-strong">{fragen.length}</span>
-              <span className="mt-1 block text-[13px] font-semibold text-ink-600">Bieterfragen</span>
-            </span>
-          </a>
-        </div>
-      )}
-
-      {(pruefung?.zusammenfassung || abgleich?.zusammenfassung) && (
-        <div className="rounded-2xl border border-brand-tint-2 px-5 py-4" style={{ background: 'var(--brand-gradient-soft)' }}>
-          <p className="flex items-center gap-2 text-[13px] font-bold text-brand-strong"><Sparkles className="size-4" strokeWidth={1.75} aria-hidden />Auf einen Blick</p>
-          {pruefung?.zusammenfassung && <p className="mt-1.5 text-[15px] leading-relaxed text-ink-950">{pruefung.zusammenfassung}</p>}
-          {abgleich?.zusammenfassung && <p className="mt-1.5 text-[15px] leading-relaxed text-ink-950">{abgleich.zusammenfassung}</p>}
         </div>
       )}
 
@@ -201,7 +205,7 @@ export function Pruefbericht({
                     <p className="mt-0.5 text-[15px] font-semibold text-ink-950">{w.lv}</p>
                   </div>
                   <span className="hidden place-items-center text-ink-400 sm:grid"><ArrowRight className="size-4" strokeWidth={2} aria-hidden /></span>
-                  <div className={`rounded-xl px-4 py-3 ${w.stufe === 'kritisch' ? 'bg-[#FEE2E2]' : 'bg-[#FEF6C7]'}`}>
+                  <div className={`rounded-xl px-4 py-3 ${w.stufe === 'kritisch' ? 'bg-[#FFF1E6]' : 'bg-[#FEF6C7]'}`}>
                     <p className="text-[12px] font-semibold text-ink-600">Im Plan</p>
                     <p className="mt-0.5 text-[15px] font-semibold text-ink-950">{w.plan}</p>
                   </div>
@@ -213,7 +217,7 @@ export function Pruefbericht({
           {(abgleich.fehlt_im_lv.length > 0 || abgleich.nicht_im_plan.length > 0 || abgleich.mengen.length > 0) && (
             <div className="karte divide-y divide-line">
               {abgleich.fehlt_im_lv.map((f, i) => (
-                <ListenZeile key={`f${i}`} marke="Fehlt im LV" ton="bg-[#FEE2E2] text-[#991B1B]" titel={`${f.bauteil}${f.menge_plan ? `, ${zahl(f.menge_plan, 2)} ${f.einheit}` : ''}`} text={f.hinweis} fundstelle={f.fundstelle} />
+                <ListenZeile key={`f${i}`} marke="Fehlt im LV" ton="bg-[#FFEDD5] text-[#9A3412]" titel={`${f.bauteil}${f.menge_plan ? `, ${zahl(f.menge_plan, 2)} ${f.einheit}` : ''}`} text={f.hinweis} fundstelle={f.fundstelle} />
               ))}
               {abgleich.mengen.map((m, i) => (
                 <ListenZeile key={`m${i}`} marke="Menge" ton="bg-[#FEF6C7] text-[#7A5200]" oz={m.oz} id={idVon(m.oz)} onPosition={onPosition} titel={`LV ${zahl(m.menge_lv, 2)} ${m.einheit}, Plan ${zahl(m.menge_plan, 2)} ${m.einheit}`} text={m.hinweis} />
@@ -225,9 +229,6 @@ export function Pruefbericht({
           )}
         </div>
       )}
-
-      {/* Bieterfragen */}
-      {fragen.length > 0 && <Bieterfragen fragen={fragen} />}
 
       {/* Preise und Mengen, ohne KI */}
       {befunde.length > 0 && (
@@ -275,7 +276,7 @@ function HinweisKarte({ h, idVon, onPosition }: { h: PruefHinweis; idVon: (oz: s
       <h4 className="text-[16px] font-bold leading-snug text-ink-950">{h.titel}</h4>
       <p className="text-[14px] leading-relaxed text-ink-700">{h.text}</p>
       {h.folge && (
-        <p className={`mt-auto flex gap-2 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold leading-snug ${h.stufe === 'kritisch' ? 'bg-[#FEF2F2] text-[#7F1D1D]' : 'bg-brand-tint/60 text-brand-strong'}`}>
+        <p className={`mt-auto flex gap-2 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold leading-snug ${h.stufe === 'kritisch' ? 'bg-[#FFF4EB] text-[#7C2D12]' : 'bg-brand-tint/60 text-brand-strong'}`}>
           {h.stufe === 'kritisch' ? <ShieldAlert className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden /> : <Calculator className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden />}
           {h.folge}
         </p>
@@ -322,7 +323,7 @@ function Bieterfragen({ fragen }: { fragen: Bieterfrage[] }) {
     <div id="bieterfragen" className="flex scroll-mt-24 flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h3 className="text-[16px] font-bold text-ink-950">Bieterfragen</h3>
+          <h3 className="flex items-center gap-2 text-[16px] font-bold text-ink-950"><span className="grid size-7 place-items-center rounded-full bg-brand-tint text-brand-strong"><MessageSquareText className="size-3.5" strokeWidth={1.75} aria-hidden /></span>Bieterfragen<span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-brand px-2 font-mono text-[12px] font-medium text-white">{fragen.length}</span></h3>
           <p className="text-[13px] text-ink-600">Vorschläge von AIM, fertig formuliert. Sie entscheiden, was Sie an die Vergabestelle schicken.</p>
         </div>
         <button className="knopf-zweit knopf-klein" onClick={() => kopiere(alle, 'alle')}>
@@ -333,7 +334,7 @@ function Bieterfragen({ fragen }: { fragen: Bieterfrage[] }) {
       <ol className="flex flex-col gap-3">
         {fragen.map((f, i) => (
           <li key={i} className="karte flex gap-4 p-5">
-            <span className={`grid size-8 shrink-0 place-items-center rounded-full font-mono text-[13px] font-semibold ${f.stufe === 'kritisch' ? 'bg-[#FEE2E2] text-[#991B1B]' : 'bg-brand-tint text-brand-strong'}`}>{i + 1}</span>
+            <span className={`grid size-8 shrink-0 place-items-center rounded-full font-mono text-[13px] font-semibold bg-brand-tint text-brand-strong`}>{i + 1}</span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-500">
                 {f.bezug && <span className="zahl font-semibold text-ink-700">{f.bezug}</span>}

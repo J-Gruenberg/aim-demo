@@ -236,7 +236,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
   @keyframes live-glimmen { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
   .live-cursor::after { content: ""; display: inline-block; width: 0.5em; height: 1em; margin-left: 3px; vertical-align: -2px; background: #5eead4; animation: live-blinken 1s steps(1) infinite; }
   @keyframes live-blinken { 50% { opacity: 0; } }
+  /* LV in der Live-Ansicht: Zeile wird abgetastet, Preis schimmert, fertige Zeile blitzt auf */
+  .live-zeile-scan::after { content: ""; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.22) 70%, rgba(94, 234, 212, 0.55)); animation: live-zeile 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+  @keyframes live-zeile { to { left: 100%; } }
+  .live-schimmer { display: inline-block; width: 72px; height: 12px; border-radius: 6px; vertical-align: -1px; background: linear-gradient(90deg, rgba(94, 234, 212, 0.12), rgba(94, 234, 212, 0.55), rgba(94, 234, 212, 0.12)); background-size: 200% 100%; animation: live-schimmer 1.1s linear infinite; }
+  @keyframes live-schimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  .live-blitz { animation: live-blitz 1.1s var(--ease-standard) both; }
+  @keyframes live-blitz { 0% { background-color: rgba(94, 234, 212, 0.38); box-shadow: 0 0 28px rgba(94, 234, 212, 0.45); } 100% { background-color: rgba(255, 255, 255, 0.035); box-shadow: none; } }
   @media (prefers-reduced-motion: reduce) {
+    .live-zeile-scan::after { display: none; }
+    .live-schimmer, .live-blitz { animation: none; }
     .live-strahl { display: none; }
     .live-fokus, .live-glimmen, .live-rein, .live-cursor::after { animation: none; }
   }
