@@ -1,10 +1,10 @@
 export const metadata = { title: 'Hilfe' };
 
 const SCHRITTE = [
-  ['Nach Zeichnung', '„+ Nach Zeichnung“, Werkstattzeichnungen hineinziehen, „Alle lesen und kalkulieren“. Jede Position zeigt Stückliste, Arbeitsgänge und den Rechenweg über Ihre Kostenstellen.'],
-  ['Ausschreibung', '„+ Ausschreibung“, LV als PDF oder GAEB hineinziehen, „Positionen lesen“, „Offene kalkulieren“, prüfen und freigeben.'],
-  ['Halle', '„+ Halle“, Maße und Ausführung links eingeben, Vordruck rechts prüfen, „Angebot ansehen“.'],
-  ['Treppe und Geländer', '„+ Treppe / Geländer“, dann „+ Geländer“ oder „+ Treppe“ und die Werte rechts anpassen.'],
+  ['Nach Zeichnung', '„Neue Kalkulation“, dann „Nach Zeichnung“. Werkstattzeichnungen hineinziehen, „Alle lesen und kalkulieren“. Jede Position zeigt Stückliste, Arbeitsgänge und den Rechenweg über Ihre Kostenstellen.'],
+  ['Ausschreibung', '„Neue Kalkulation“, dann „Ausschreibung“. LV als PDF oder GAEB hineinziehen, „Positionen lesen“, „Offene kalkulieren“, prüfen und freigeben.'],
+  ['Halle', '„Neue Kalkulation“, dann „Hallenbau“. Maße und Ausführung links eingeben, Vordruck rechts prüfen, „Angebot ansehen“.'],
+  ['Treppe und Geländer', '„Neue Kalkulation“, dann „Treppe, Geländer, Stahlbau“. Bauteil hinzufügen und die Werte anpassen.'],
   ['Stammdaten', 'Kostenstellen, Zuschläge und Zeitwerte anpassen: Wert anklicken, neue Zahl, Enter. Danach in der Kalkulation „Neu rechnen“.'],
   ['Briefkopf', 'Unter „Betrieb“ Name und Anschrift eintragen. Jedes Angebot kommt dann auf diesem Briefkopf raus.'],
 ];
