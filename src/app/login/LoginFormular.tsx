@@ -34,9 +34,9 @@ export function LoginFormular() {
         <label className="label" htmlFor="pw">Passwort</label>
         <input id="pw" type="password" autoComplete="current-password" required className="eingabe" value={passwort} onChange={(e) => setPasswort(e.target.value)} />
       </div>
-      {fehler && <p className="text-sm text-rot">{fehler}</p>}
-      <button type="submit" className="knopf-primaer w-full h-11 text-[15px]" disabled={laedt}>{laedt ? 'Anmelden …' : 'Anmelden'}</button>
-      <p className="text-[13px] text-hell pt-2">Passwort vergessen? Kurze Nachricht an Ihren Ansprechpartner bei toolwerk, wir setzen es zurück.</p>
+      {fehler && <p className="rounded-xl bg-signal-tint px-3 py-2 text-[14px] font-semibold text-signal">{fehler}</p>}
+      <button type="submit" className="knopf-primaer knopf-gross w-full" disabled={laedt}>{laedt ? 'Anmelden …' : 'Anmelden'}</button>
+      <p className="pt-2 text-[13px] text-ink-500">Passwort vergessen? Kurze Nachricht an Ihren Ansprechpartner bei toolwerk, wir setzen es zurück.</p>
     </form>
   );
 }

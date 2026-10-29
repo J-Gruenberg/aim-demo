@@ -19,11 +19,11 @@ export async function PositionsAngebot({ id, typ }: { id: string; typ: 'lv' | 'b
   // Ausschreibung: alles muss freigegeben sein. Bauteile: nur offene, zu prüfende oder preislose Positionen zählen.
   const offen = pos.filter((x) => (typ === 'lv' ? x.status !== 'freigegeben' : x.status === 'offen' || x.status === 'pruefen' || x.ep === null)).length;
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 py-6 bg-papier min-h-dvh">
+    <div className="-mx-4 md:-mx-8 -mt-5 md:-mt-8 py-6 bg-papier min-h-dvh">
       <style>{DRUCK_CSS}</style>
       <DruckLeiste zurueck={`/${typ}/${id}`} projektId={id} kopf={kopf} />
       {offen > 0 && (
-        <p className="nicht-drucken max-w-[210mm] mx-auto -mt-3 mb-4 rounded-[6px] border-l-4 border-[#e0a03a] bg-gelb-hell text-gelb text-[14px] font-medium px-4 py-2.5">
+        <p className="nicht-drucken max-w-[210mm] mx-auto -mt-3 mb-4 rounded-xl border-l-4 border-[#e0a03a] bg-gelb-hell text-gelb text-[14px] font-medium px-4 py-2.5">
           {offen} {offen === 1 ? 'Position ist' : 'Positionen sind'} noch nicht freigegeben. Bis dahin steht auf dem Ausdruck „Entwurf“.
         </p>
       )}

@@ -46,7 +46,7 @@ export function StammdatenTabelle({ zeilen: start, darfSchreiben }: { zeilen: St
       </div>
       {gruppen.map(({ g, z }) => (
         <section key={g} className="karte overflow-x-auto">
-          <h2 className="px-4 py-3 text-[16px] font-bold text-tiefblau border-b border-linie">{g}</h2>
+          <h2 className="px-4 py-3 text-[16px] font-bold text-ink-950 border-b border-linie">{g}</h2>
           <table className="tabelle">
             <thead>
               <tr>

@@ -36,7 +36,7 @@ export default async function KontoSeite() {
   }
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="breit text-[34px] font-bold text-tiefblau leading-tight">Konto</h1>
+      <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950">Konto</h1>
       <section className="karte p-5 grid sm:grid-cols-[1fr_1.6fr_1fr] gap-4 text-sm">
         <div><div className="label">Name</div>{profil?.name ?? '–'}</div>
         <div className="min-w-0 break-all"><div className="label">E-Mail</div>{profil?.email}</div>

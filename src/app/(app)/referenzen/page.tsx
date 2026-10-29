@@ -16,7 +16,7 @@ export default async function ReferenzenSeite() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="breit text-[34px] font-bold text-tiefblau leading-tight">Referenzen und Archiv</h1>
+        <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950">Referenzen und Archiv</h1>
         <p className="text-grau text-sm mt-1 max-w-3xl">
           Im Echtbetrieb liest AIM hier Ihre Angebote, Auftragsbestätigungen, Kalkulationszettel und Nachkalkulationen ein. Sie werden zum Maßstab für Stahlgewicht, Zeiten und Preisvergleich. Der Beispielbetrieb startet mit leerem Archiv.
         </p>
@@ -26,7 +26,7 @@ export default async function ReferenzenSeite() {
       </section>
       {hallen.length > 0 && (
       <section className="karte overflow-x-auto">
-        <h2 className="px-4 py-3 text-[16px] font-bold text-tiefblau border-b border-linie">Hallen ({hallen.length})</h2>
+        <h2 className="px-4 py-3 text-[16px] font-bold text-ink-950 border-b border-linie">Hallen ({hallen.length})</h2>
         <table className="tabelle">
           <thead>
             <tr>
@@ -68,7 +68,7 @@ export default async function ReferenzenSeite() {
       )}
       {andere.length > 0 && (
         <section className="karte overflow-x-auto">
-          <h2 className="px-4 py-3 text-[16px] font-bold text-tiefblau border-b border-linie">Ausschreibungen und Bauteile ({andere.length})</h2>
+          <h2 className="px-4 py-3 text-[16px] font-bold text-ink-950 border-b border-linie">Ausschreibungen und Bauteile ({andere.length})</h2>
           <table className="tabelle">
             <thead><tr><th>Projekt</th><th className="text-right">Datum</th><th>Inhalt</th><th className="text-right">Angebot netto</th></tr></thead>
             <tbody>

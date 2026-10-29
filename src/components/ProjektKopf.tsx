@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { Building2, ChevronDown, CircleDot, Flag, MapPin, type LucideIcon } from 'lucide-react';
 
 export type ProjektMeta = {
   id: string;
@@ -11,12 +11,18 @@ export type ProjektMeta = {
   abgabe?: string | null;
 };
 
-const FELD = 'w-full bg-transparent text-[15px] font-medium text-tinte outline-none rounded-[3px] -mx-1 px-1 py-0.5 placeholder:text-hell/70 placeholder:font-normal hover:bg-papier focus:bg-blau-hell/60 disabled:hover:bg-transparent';
+const PILL = 'h-9 rounded-full border border-line bg-surface pl-9 pr-3.5 text-[14px] font-semibold text-ink-950 outline-none transition-colors placeholder:font-medium placeholder:text-ink-400 hover:border-line-strong focus:border-brand disabled:hover:border-line';
 
-/**
- * Kopf einer Kalkulation, aufgebaut wie das Schriftfeld einer Werkstattzeichnung:
- * Benennung oben, darunter Kunde, Baustelle und Stand, optional eine Zeile mit Kennzahlen.
- */
+function Feld({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <label className="relative inline-flex items-center">
+      <Icon className="pointer-events-none absolute left-3.5 size-4 text-ink-500" strokeWidth={1.75} aria-hidden />
+      {children}
+    </label>
+  );
+}
+
+/** Kopf einer Kalkulation: Titel, Kunde, Baustelle, Stand. Kennzahlen und Hauptaktion folgen darunter im Hero. */
 export function ProjektKopf({
   meta,
   onMeta,
@@ -35,56 +41,49 @@ export function ProjektKopf({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2 text-[13px] text-hell">
-        <Link href="/" className="hover:text-tiefblau">Kalkulationen</Link>
-        <span aria-hidden>/</span>
-        <span className="text-grau">{art}</span>
-        <span className="ml-auto">{stand}</span>
-      </div>
-      <div className="schriftfeld">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 sm:px-5 py-4">
-          <div className="min-w-0 flex-1 basis-[420px]">
-            <span className="feldname">Benennung</span>
-            <input
-              className="w-full bg-transparent breit text-[26px] sm:text-[30px] font-bold leading-tight text-tiefblau outline-none rounded-[3px] -mx-1 px-1 hover:bg-papier focus:bg-blau-hell/60 disabled:hover:bg-transparent"
-              value={meta.titel}
-              disabled={gesperrt}
-              onChange={(e) => onMeta({ ...meta, titel: e.target.value })}
-              aria-label="Projektname"
-            />
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-0 flex-1 basis-[420px]">
+          <div className="flex items-center gap-2 text-[13px] text-ink-500">
+            <span className="marke h-[22px] bg-label-teal-bg px-2 text-[11px] text-label-teal-fg">{art}</span>
+            <span>{stand}</span>
           </div>
-          <div className="flex flex-wrap gap-2">{children}</div>
+          <input
+            className="mt-2 w-full rounded-lg bg-transparent text-[26px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950 outline-none -mx-1.5 px-1.5 hover:bg-[var(--bg-hover)] focus:bg-surface focus:shadow-[0_0_0_3px_var(--brand-tint)] disabled:hover:bg-transparent sm:text-[30px]"
+            value={meta.titel}
+            disabled={gesperrt}
+            onChange={(e) => onMeta({ ...meta, titel: e.target.value })}
+            aria-label="Projektname"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Feld icon={Building2}>
+              <input className={`${PILL} w-56`} placeholder="Kunde" aria-label="Kunde" value={meta.kunde ?? ''} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, kunde: e.target.value })} />
+            </Feld>
+            <Feld icon={MapPin}>
+              <input className={`${PILL} w-48`} placeholder="Baustelle" aria-label="Baustelle" value={meta.ort ?? ''} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, ort: e.target.value })} />
+            </Feld>
+            <Feld icon={CircleDot}>
+              <select className={`${PILL} appearance-none pr-8 cursor-pointer`} aria-label="Stand" value={meta.status} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, status: e.target.value as ProjektMeta['status'] })}>
+                <option value="entwurf">Entwurf</option>
+                <option value="in_pruefung">In Prüfung</option>
+                <option value="freigegeben">Freigegeben</option>
+                <option value="abgegeben">Abgegeben</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 size-3.5 text-ink-500" strokeWidth={2} aria-hidden />
+            </Feld>
+            <Feld icon={Flag}>
+              <select className={`${PILL} appearance-none pr-8 cursor-pointer`} aria-label="Ausgang" value={meta.ergebnis_label ?? 'offen'} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, ergebnis_label: e.target.value as ProjektMeta['ergebnis_label'] })}>
+                <option value="offen">Ausgang offen</option>
+                <option value="beauftragt">Beauftragt</option>
+                <option value="nicht_beauftragt">Nicht beauftragt</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 size-3.5 text-ink-500" strokeWidth={2} aria-hidden />
+            </Feld>
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-[1.4fr_1.2fr_1fr_1fr] gap-px bg-linie-stark border-t border-linie-stark">
-          <label className="schriftfeld-zelle bg-flaeche">
-            <span className="feldname">Kunde</span>
-            <input className={FELD} placeholder="Name des Kunden" value={meta.kunde ?? ''} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, kunde: e.target.value })} />
-          </label>
-          <label className="schriftfeld-zelle bg-flaeche">
-            <span className="feldname">Baustelle</span>
-            <input className={FELD} placeholder="Ort der Baustelle" value={meta.ort ?? ''} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, ort: e.target.value })} />
-          </label>
-          <label className="schriftfeld-zelle bg-flaeche">
-            <span className="feldname">Stand</span>
-            <select className={`${FELD} cursor-pointer`} value={meta.status} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, status: e.target.value as ProjektMeta['status'] })}>
-              <option value="entwurf">Entwurf</option>
-              <option value="in_pruefung">In Prüfung</option>
-              <option value="freigegeben">Freigegeben</option>
-              <option value="abgegeben">Abgegeben</option>
-            </select>
-          </label>
-          <label className="schriftfeld-zelle bg-flaeche">
-            <span className="feldname">Ausgang</span>
-            <select className={`${FELD} cursor-pointer`} value={meta.ergebnis_label ?? 'offen'} disabled={gesperrt} onChange={(e) => onMeta({ ...meta, ergebnis_label: e.target.value as ProjektMeta['ergebnis_label'] })}>
-              <option value="offen">Offen</option>
-              <option value="beauftragt">Beauftragt</option>
-              <option value="nicht_beauftragt">Nicht beauftragt</option>
-            </select>
-          </label>
-        </div>
-        {kennzahlen && <div className="border-t-[1.5px] border-tiefblau">{kennzahlen}</div>}
+        {children && <div className="flex flex-wrap gap-2">{children}</div>}
       </div>
+      {kennzahlen}
     </div>
   );
 }

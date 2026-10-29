@@ -2,12 +2,12 @@ import Link from 'next/link';
 
 export function Fusszeile({ ohneAbstand = false }: { ohneAbstand?: boolean }) {
   return (
-    <footer className={`nicht-drucken border-t border-linie bg-papier ${ohneAbstand ? '' : 'mt-16'}`}>
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6 flex flex-wrap items-center justify-between gap-3 text-[13px] text-hell">
+    <footer className={`nicht-drucken ${ohneAbstand ? '' : 'mt-10'}`}>
+      <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-5 text-[12px] text-ink-500 md:px-8">
         <span>AIM, Angebote in Minuten. toolwerk, eine Marke der Grünberg Solutions GmbH</span>
         <nav className="flex gap-4">
-          <Link href="/impressum" className="hover:text-tiefblau">Impressum</Link>
-          <Link href="/datenschutz" className="hover:text-tiefblau">Datenschutz</Link>
+          <Link href="/impressum" className="hover:text-ink-950">Impressum</Link>
+          <Link href="/datenschutz" className="hover:text-ink-950">Datenschutz</Link>
         </nav>
       </div>
     </footer>

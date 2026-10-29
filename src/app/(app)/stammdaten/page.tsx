@@ -18,7 +18,7 @@ export default async function StammdatenSeite() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="breit text-[34px] font-bold text-tiefblau leading-tight">Stammdaten</h1>
+          <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950">Stammdaten</h1>
           <p className="text-grau text-[15px] mt-1 max-w-2xl">
             Ihre Kalkulationsgrundlagen. Jede Kalkulation rechnet mit diesen Werten. Was aus Ihren Zetteln und Angeboten stammt, steht in der Quelle. Noch nicht bestätigte Werte haben links einen gelben Strich, bis Sie sie abhaken.
           </p>

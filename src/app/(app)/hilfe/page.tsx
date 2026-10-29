@@ -19,12 +19,12 @@ export default function HilfeSeite() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="breit text-[34px] font-bold text-tiefblau leading-tight">Hilfe</h1>
+        <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink-950">Hilfe</h1>
         <p className="text-grau text-sm mt-1">So arbeiten Sie mit AIM. Zum Ausprobieren liegen unten drei Beispielzeichnungen bereit.</p>
       </div>
       <div className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
         <section className="karte p-5">
-          <h2 className="text-[16px] font-bold text-tiefblau mb-3">Kurz und knapp</h2>
+          <h2 className="text-[16px] font-bold text-ink-950 mb-3">Kurz und knapp</h2>
           <ol className="space-y-3">
             {SCHRITTE.map(([t, x], i) => (
               <li key={t} className="flex gap-3 text-[13px]">
@@ -36,12 +36,12 @@ export default function HilfeSeite() {
         </section>
         <aside className="space-y-4">
           <section className="karte p-4 space-y-3">
-            <h2 className="text-[16px] font-bold text-tiefblau">Beispielzeichnungen</h2>
+            <h2 className="text-[16px] font-bold text-ink-950">Beispielzeichnungen</h2>
             <p className="text-[13px] text-grau">Ausgedachte Werkstattzeichnungen mit Stückliste. Herunterladen und unter „Nach Zeichnung“ wieder ablegen.</p>
             <ul className="space-y-2">
               {BEISPIELE.map(([datei, text]) => (
                 <li key={datei}>
-                  <a href={`/beispiele/${datei}`} download className="block rounded-[6px] border border-linie px-3 py-2 hover:border-tiefblau">
+                  <a href={`/beispiele/${datei}`} download className="block rounded-xl border border-linie px-3 py-2 hover:border-tiefblau">
                     <div className="text-[13px] font-medium">{datei.replace('Beispiel_', '').replace('.pdf', '').replace(/_/g, ' ')}</div>
                     <div className="text-[12px] text-grau">{text}</div>
                   </a>
@@ -50,7 +50,7 @@ export default function HilfeSeite() {
             </ul>
           </section>
           <section className="karte p-4 text-[13px]">
-            <h2 className="text-[16px] font-bold text-tiefblau mb-1">Fragen?</h2>
+            <h2 className="text-[16px] font-bold text-ink-950 mb-1">Fragen?</h2>
             <p className="text-grau">Jonas Grünberg · <a className="underline" href="tel:+4915255604258">0152 55604258</a> · <a className="underline" href="mailto:kontakt@gruenbergsolutions.de">kontakt@gruenbergsolutions.de</a></p>
           </section>
         </aside>

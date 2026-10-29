@@ -109,7 +109,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
       )}
 
       {e.gelesen && (e.gelesen.hinweise.length > 0 || e.gelesen.fehlend.length > 0) && (
-        <div className="rounded-[6px] border border-linie bg-flaeche px-4 py-3 text-[13px] space-y-1">
+        <div className="rounded-xl border border-linie bg-flaeche px-4 py-3 text-[13px] space-y-1">
           <div className="text-[12px] font-medium schmal text-hell">
             Aus {e.gelesen.quellen.join(', ')} übernommen am {datum(e.gelesen.datum)}
             <button className="ml-3 text-hell hover:text-rot" onClick={() => setze('gelesen', undefined)}>ausblenden</button>
@@ -128,7 +128,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
       </div>
 
       {erg.hinweise.length > 0 && (
-        <div className="rounded-[6px] border border-gelb/30 bg-gelb-hell px-4 py-3 text-sm text-gelb space-y-1">
+        <div className="rounded-xl border border-gelb/30 bg-gelb-hell px-4 py-3 text-sm text-gelb space-y-1">
           {erg.hinweise.map((h) => <p key={h}>{h}</p>)}
         </div>
       )}
@@ -136,7 +136,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
       <div className="grid lg:grid-cols-[340px_1fr] gap-6 items-start">
         <aside className="space-y-4 lg:sticky lg:top-20">
           <section className="karte p-4 space-y-3">
-            <h2 className="text-[16px] font-bold text-tiefblau">Maße</h2>
+            <h2 className="text-[16px] font-bold text-ink-950">Maße</h2>
             <div className="grid grid-cols-3 gap-2">
               <Feld label="Länge" einheit="m"><ZahlFeld wert={e.laenge} onWert={(v) => setze('laenge', v ?? 0)} className="pr-7" /></Feld>
               <Feld label="Breite" einheit="m"><ZahlFeld wert={e.breite} onWert={(v) => setze('breite', v ?? 0)} className="pr-7" /></Feld>
@@ -150,7 +150,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
           </section>
 
           <section className="karte p-4 space-y-3">
-            <h2 className="text-[16px] font-bold text-tiefblau">Ausführung</h2>
+            <h2 className="text-[16px] font-bold text-ink-950">Ausführung</h2>
             <div>
               <label className="label">Stahlbau</label>
               <Auswahl wert={e.oberflaeche} onWert={(v) => setze('oberflaeche', v)} optionen={[{ wert: 'grundiert', label: 'grundiert' }, { wert: 'verzinkt', label: 'verzinkt' }]} />
@@ -173,7 +173,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 
           <section className="karte p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-bold text-tiefblau">Tore</h2>
+              <h2 className="text-[16px] font-bold text-ink-950">Tore</h2>
               <button className="knopf-leise knopf-klein" onClick={() => setze('tore', [...e.tore, { anzahl: 1, breite: 4, hoehe: 4, antrieb: false }])}>+ Tor</button>
             </div>
             {e.tore.length === 0 && <p className="text-[12px] text-hell">Keine Tore.</p>}
@@ -192,7 +192,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
           </section>
 
           <section className="karte p-4 space-y-3">
-            <h2 className="text-[16px] font-bold text-tiefblau">Öffnungen und Ausbau</h2>
+            <h2 className="text-[16px] font-bold text-ink-950">Öffnungen und Ausbau</h2>
             <div className="grid grid-cols-3 gap-2">
               <Feld label="Türen"><ZahlFeld wert={e.tueren} stellen={0} onWert={(v) => setze('tueren', v ?? 0)} /></Feld>
               <Feld label="Fenster"><ZahlFeld wert={e.fenster} stellen={0} onWert={(v) => setze('fenster', v ?? 0)} /></Feld>
@@ -208,7 +208,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
           </section>
 
           <section className="karte p-4">
-            <h2 className="text-[16px] font-bold text-tiefblau mb-1">Leistungsumfang</h2>
+            <h2 className="text-[16px] font-bold text-ink-950 mb-1">Leistungsumfang</h2>
             <div className="divide-y divide-linie">
               <Schalter an={e.optionen.erdarbeiten} onAn={(v) => setzeOpt('erdarbeiten', v)} label="Erdarbeiten, Fundamente, Sohle" />
               <Schalter an={e.optionen.statik} onAn={(v) => setzeOpt('statik', v)} label="Statik" />
@@ -279,7 +279,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 
           <div className="grid xl:grid-cols-2 gap-6">
             <section className="karte p-4">
-              <h2 className="text-[16px] font-bold text-tiefblau">Stahlgewicht</h2>
+              <h2 className="text-[16px] font-bold text-ink-950">Stahlgewicht</h2>
               <p className="text-[12px] text-grau mt-1">
                 {erg.stahl.methode === 'stahlliste'
                   ? 'Stahlliste wie auf Ihrem Zettel: Stiele und Riegel der Hauptrahmen, Giebelrahmen, Verbände, Rundstahl, plus Kleinteile. Pfetten und Riegel stehen extra im Vordruck.'
@@ -310,7 +310,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
               </div>
               {e.stahl_kg_manuell ? <button className="knopf-leise knopf-klein mt-2" onClick={() => setze('stahl_kg_manuell', null)}>Zurück auf Stahlliste</button> : null}
               {erg.stahl.gegenprobe && (
-                <div className="mt-4 rounded-[6px] bg-papier border border-linie p-3">
+                <div className="mt-4 rounded-xl bg-papier border border-linie p-3">
                   <div className="flex items-baseline justify-between gap-3 text-[13px]">
                     <span className="font-medium">Gegenprobe ähnliche Hallen</span>
                     <span className="zahl">{zahl(erg.stahl.gegenprobe.kg_m2, 1)} kg/m² · {zahl(erg.stahl.gegenprobe.kg / 1000, 1)} t</span>
@@ -325,7 +325,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
             </section>
 
             <section className="karte p-4">
-              <h2 className="text-[16px] font-bold text-tiefblau">Ähnliche Hallen aus Ihrem Archiv</h2>
+              <h2 className="text-[16px] font-bold text-ink-950">Ähnliche Hallen aus Ihrem Archiv</h2>
               <p className="text-[12px] text-grau mt-1">Hauptposition Ihres damaligen Angebots. Umfang beachten, Preise sind nicht indexiert.</p>
               <div className="mt-3 divide-y divide-linie">
                 {aehnliche.length === 0 && <p className="text-sm text-hell py-2">Noch keine Referenzhallen hinterlegt.</p>}
@@ -351,7 +351,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
           </div>
 
           <section className="karte p-4">
-            <h2 className="text-[16px] font-bold text-tiefblau">Notiz zur Kalkulation</h2>
+            <h2 className="text-[16px] font-bold text-ink-950">Notiz zur Kalkulation</h2>
             <textarea className="eingabe h-24 py-2 mt-2" value={e.notiz ?? ''} onChange={(ev) => setze('notiz', ev.target.value)} placeholder="z. B. Bodengutachten fehlt, Kran bauseits, Abweichung nach Statik …" />
           </section>
         </div>
@@ -362,7 +362,7 @@ export function HallenEditor({ projekt, stamm, punkte, referenzen, darfSchreiben
 
 function Kennzahl({ label, wert, sub, gross = false }: { label: string; wert: string; sub?: string; gross?: boolean }) {
   return (
-    <div className={`rounded-[6px] px-4 py-3 ${gross ? 'bg-tiefblau text-white' : 'karte'}`}>
+    <div className={`rounded-xl px-4 py-3 ${gross ? 'bg-tiefblau text-white' : 'karte'}`}>
       <div className={`text-[12px] font-medium schmal ${gross ? 'text-white/60' : 'text-hell'}`}>{label}</div>
       <div className={`zahl mt-1 font-semibold ${gross ? 'text-[24px]' : 'text-[20px]'}`}>{wert}</div>
       {sub && <div className={`text-[12px] ${gross ? 'text-white/60' : 'text-grau'}`}>{sub}</div>}

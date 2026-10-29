@@ -1,13 +1,9 @@
-export function AimMarke({ hell = false }: { hell?: boolean }) {
-  const tusche = hell ? '#ffffff' : '#0e2840';
+/** Wortmarke als gesetzter Text, wie im toolwerk-Designsystem (kein Bildlogo). */
+export function AimMarke({ hell = false, klein = false }: { hell?: boolean; klein?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden>
-        <circle cx="16" cy="16" r="14.5" fill="none" stroke={tusche} strokeWidth="2" />
-        <path d="M9.5 22.5 L16 9 L22.5 22.5" fill="none" stroke={tusche} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
-        <path d="M12 18.2 H20" stroke="#c5301f" strokeWidth="2.6" strokeLinecap="round" />
-      </svg>
-      <span className={`breit font-bold text-[17px] ${hell ? 'text-white' : 'text-tiefblau'}`}>AIM</span>
+    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap leading-none">
+      <span className={`font-extrabold tracking-[-0.02em] ${klein ? 'text-[13px]' : 'text-[18px]'} ${hell ? 'text-white' : 'text-ink-950'}`}>AIM</span>
+      <span className={`${klein ? 'text-[11px]' : 'text-[12px]'} font-medium ${hell ? 'text-white/70' : 'text-ink-500'}`}>{klein ? '· Angebote in Minuten · toolwerk' : 'toolwerk'}</span>
     </span>
   );
 }

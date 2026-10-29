@@ -40,7 +40,7 @@ export default async function HallenAngebot({ params, searchParams }: { params: 
   const abschnitte = baubeschreibung(e, erg);
 
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 py-6 bg-papier min-h-dvh">
+    <div className="-mx-4 md:-mx-8 -mt-5 md:-mt-8 py-6 bg-papier min-h-dvh">
       <style>{DRUCK_CSS}</style>
       <DruckLeiste zurueck={`/halle/${id}`} projektId={id} kopf={kopf} ansicht={ansicht} ansichten={[{ wert: 'angebot', label: 'Angebot' }, { wert: 'zettel', label: 'Kalkulationsblatt (intern)' }]} />
       {ansicht === 'zettel' ? (

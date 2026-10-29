@@ -1,112 +1,207 @@
 @import "tailwindcss";
-@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource-variable/manrope/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
 
 /*
-  AIM, Gestaltung nach der Werkstattzeichnung:
-  kühles Zeichenpapier, Tiefblau als Tusche für Rahmen und Schriftfelder,
-  Rot nur für Handlungen. Eine Schrift (Archivo) in drei Breiten:
-  breit für Kopfzeilen und Summen, normal für Text, schmal für Feldbezeichnungen.
+  AIM im toolwerk-Designsystem (gleiche Grundlage wie der Zuschlagsfinder):
+  Teal als Marke, ein Labelsystem mit fester Bedeutung, Koralle nur für Alarm.
+  Manrope für Oberfläche und Kennzahlen, JetBrains Mono für Beträge und Nummern.
+  Karten weiß mit 16 px Rundung und weichem Schatten, Pill-Buttons, eine Hero-Fläche je Seite.
 */
-@theme {
-  --color-papier: #eef1f4;
-  --color-papier-2: #e4e9ee;
-  --color-flaeche: #ffffff;
-  --color-tinte: #102033;
-  --color-grau: #4f6072;
-  --color-hell: #7d8b99;
-  --color-linie: #d6dde4;
-  --color-linie-stark: #b8c3ce;
-  --color-tiefblau: #0e2840;
-  --color-tiefblau-2: #1b3d5e;
-  --color-tusche: #2a4a6b;
-  --color-rot: #c5301f;
-  --color-rot-dunkel: #a3271a;
-  --color-gruen: #24734a;
-  --color-gruen-hell: #e3f1e9;
-  --color-gelb: #9a5b0b;
-  --color-gelb-hell: #fdf0d5;
-  --color-rot-hell: #fbe7e4;
-  --color-blau-hell: #e3ebf4;
-  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
-  --radius-blatt: 6px;
+:root {
+  --paper: #F4F7F6;
+  --surface: #FFFFFF;
+  --surface-sunken: #ECF1F0;
+  --ink-950: #0F1C1A; --ink-900: #1B2927; --ink-800: #2B3A37; --ink-700: #3F4F4C; --ink-600: #566865;
+  --ink-500: #74857F; --ink-400: #93A29D; --ink-300: #B4C0BC; --ink-200: #D3DBD8; --ink-100: #ECF1F0;
+  --line: #E1E8E6;
+  --line-strong: #CBD5D2;
+  --brand: #0B7F70;
+  --brand-hover: #096D60;
+  --brand-strong: #0A5C51;
+  --brand-light: #2BB5A0;
+  --brand-tint: #DDF3EF;
+  --brand-tint-2: #BFE8E0;
+  --brand-gradient: linear-gradient(135deg, #0E8C7C 0%, #086A5E 100%);
+  --brand-gradient-soft: linear-gradient(135deg, #E9F7F4 0%, #DDF3EF 60%, #E3F0FF 100%);
+  --btn-primary-bg: linear-gradient(180deg, #0C8777 0%, #0A7265 100%);
+  --btn-primary-bg-hover: linear-gradient(180deg, #0A7467 0%, #086255 100%);
+  --signal: #C73E38; --signal-hover: #A83230; --signal-tint: #FFE4E2;
+  --ok: #197A4A; --ok-dot: #22A565; --ok-tint: #DDF4E7;
+  --check: #7A5200; --check-dot: #F2B400; --check-tint: #FFF1C2;
+  --no: #C73E38; --no-dot: #E05A54; --no-tint: #FFE4E2;
+  --bg-hover: rgba(15, 28, 26, 0.04);
+  --bg-active: rgba(15, 28, 26, 0.08);
+  --focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px var(--brand);
+  --shadow-card: 0 1px 2px rgba(15, 28, 26, 0.04), 0 6px 20px rgba(15, 28, 26, 0.06);
+  --shadow-float: 0 2px 4px rgba(15, 28, 26, 0.06), 0 12px 32px rgba(15, 28, 26, 0.14);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+@theme {
+  --color-paper: #F4F7F6;
+  --color-surface: #FFFFFF;
+  --color-sunken: #ECF1F0;
+  --color-ink-950: #0F1C1A; --color-ink-900: #1B2927; --color-ink-800: #2B3A37; --color-ink-700: #3F4F4C; --color-ink-600: #566865;
+  --color-ink-500: #74857F; --color-ink-400: #93A29D; --color-ink-300: #B4C0BC; --color-ink-200: #D3DBD8; --color-ink-100: #ECF1F0;
+  --color-line: #E1E8E6;
+  --color-line-strong: #CBD5D2;
+  --color-brand: #0B7F70;
+  --color-brand-hover: #096D60;
+  --color-brand-strong: #0A5C51;
+  --color-brand-light: #2BB5A0;
+  --color-brand-tint: #DDF3EF;
+  --color-brand-tint-2: #BFE8E0;
+  --color-signal: #C73E38; --color-signal-tint: #FFE4E2;
+  --color-ok: #197A4A; --color-ok-dot: #22A565; --color-ok-tint: #DDF4E7;
+  --color-check: #7A5200; --color-check-dot: #F2B400; --color-check-tint: #FFF1C2;
+  --color-no: #C73E38; --color-no-dot: #E05A54; --color-no-tint: #FFE4E2;
+  --color-label-teal-bg: #DDF3EF;   --color-label-teal-fg: #0A5C51;
+  --color-label-sky-bg: #E3F0FF;    --color-label-sky-fg: #1B5A9E;
+  --color-label-yellow-bg: #FFF1C2; --color-label-yellow-fg: #7A5200;
+  --color-label-coral-bg: #FFE4E2;  --color-label-coral-fg: #A83230;
+  --color-label-green-bg: #DDF4E7;  --color-label-green-fg: #176B3C;
+  --color-label-violet-bg: #ECE8FF; --color-label-violet-fg: #4C3B9E;
+  --color-label-grey-bg: #ECF1F0;   --color-label-grey-fg: #4A5A57;
+  --color-sky: #2470C2;
+
+  /* Alte AIM-Namen, auf das Designsystem umgelegt */
+  --color-papier: #F4F7F6;
+  --color-papier-2: #ECF1F0;
+  --color-flaeche: #FFFFFF;
+  --color-tinte: #0F1C1A;
+  --color-grau: #566865;
+  --color-hell: #74857F;
+  --color-linie: #E1E8E6;
+  --color-linie-stark: #CBD5D2;
+  --color-tiefblau: #0A5C51;
+  --color-tiefblau-2: #096D60;
+  --color-tusche: #566865;
+  --color-rot: #C73E38;
+  --color-rot-dunkel: #A83230;
+  --color-rot-hell: #FFE4E2;
+  --color-gruen: #197A4A;
+  --color-gruen-hell: #DDF4E7;
+  --color-gelb: #7A5200;
+  --color-gelb-hell: #FFF1C2;
+  --color-blau-hell: #DDF3EF;
+
+  --font-sans: "Manrope Variable", "Manrope", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  --shadow-card: 0 1px 2px rgba(15, 28, 26, 0.04), 0 6px 20px rgba(15, 28, 26, 0.06);
+  --shadow-float: 0 2px 4px rgba(15, 28, 26, 0.06), 0 12px 32px rgba(15, 28, 26, 0.14);
+}
+
+@layer base {
+*, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  background: var(--color-papier);
-  color: var(--color-tinte);
   font-family: var(--font-sans);
-  font-stretch: 100%;
-  font-feature-settings: "tnum" 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink-950);
+  background: var(--paper);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-::selection { background: color-mix(in srgb, var(--color-tiefblau) 18%, transparent); }
-:focus-visible { outline: 2px solid var(--color-tiefblau); outline-offset: 2px; }
-
-/* Zahlen: gleiche Ziffernbreite, damit Spalten sauber untereinander stehen */
-.zahl { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.005em; }
-/* Breite Auszeichnung für Titel und Summen, schmale für Feldbezeichnungen */
-.breit { font-stretch: 118%; letter-spacing: -0.015em; }
-.schmal { font-stretch: 82%; }
-
-@utility knopf {
-  @apply inline-flex items-center justify-center gap-2 rounded-[6px] px-4 h-10 text-[14px] font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap cursor-pointer;
-}
-@utility knopf-primaer {
-  @apply knopf bg-rot text-white hover:bg-rot-dunkel;
-}
-@utility knopf-zweit {
-  @apply knopf bg-flaeche text-tiefblau border border-linie-stark hover:border-tiefblau;
-}
-@utility knopf-blau {
-  @apply knopf bg-tiefblau text-white hover:bg-tiefblau-2;
-}
-@utility knopf-leise {
-  @apply knopf font-medium text-grau hover:text-tiefblau hover:bg-papier;
-}
-@utility knopf-klein {
-  @apply h-8 px-3 text-[13px];
-}
-@utility karte {
-  @apply bg-flaeche border border-linie rounded-[6px];
-}
-@utility eingabe {
-  @apply w-full h-10 rounded-[5px] border border-linie-stark bg-flaeche px-3 text-[14px] outline-none focus:border-tiefblau focus:ring-2 focus:ring-tiefblau/15 disabled:bg-papier disabled:text-grau;
-}
-@utility eingabe-klein {
-  @apply h-8 px-2 text-[13px] rounded-[4px];
-}
-@utility label {
-  @apply block text-[12px] font-medium text-grau mb-1.5;
-  font-stretch: 85%;
-}
-@utility marke {
-  @apply inline-flex items-center gap-1 rounded-full px-2.5 h-6 text-[12px] font-medium whitespace-nowrap;
+::selection { background: var(--brand-tint-2); }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 @layer components {
-  .tabelle { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
-  .tabelle th { text-align: left; font-size: 12px; font-stretch: 85%; color: var(--color-grau); font-weight: 600; padding: 0.6rem 0.75rem; border-bottom: 1.5px solid var(--color-tiefblau); white-space: nowrap; }
-  .tabelle td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-linie); vertical-align: top; }
+
+/* Beträge, Nummern, Zeiten: Mono mit gleicher Ziffernbreite */
+.zahl { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+/* Ältere Auszeichnungen ohne Wirkung (Manrope hat keine Breitenachse) */
+.breit { letter-spacing: -0.02em; }
+.schmal { }
+
+/* Arbeitsfläche: ruhiger, leicht getönter Grund mit sanftem Verlauf oben */
+.aim-flaeche {
+  background-color: var(--paper);
+  background-image: radial-gradient(1200px 420px at 10% -10%, var(--brand-tint) 0%, transparent 60%);
+  background-repeat: no-repeat;
+}
+/* Eine Hero-Fläche pro Seite */
+.aim-hero { background: var(--brand-gradient); color: #FFFFFF; border-radius: 24px; }
+}
+
+@utility knopf {
+  @apply inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-transparent h-10 px-[18px] text-[14px] font-semibold cursor-pointer disabled:pointer-events-none disabled:opacity-45;
+  transition: background-color 120ms var(--ease-standard), border-color 120ms var(--ease-standard), color 120ms var(--ease-standard), box-shadow 120ms var(--ease-standard);
+}
+@utility knopf-primaer {
+  @apply knopf text-white;
+  background-image: var(--btn-primary-bg);
+  box-shadow: 0 1px 2px rgba(15, 28, 26, 0.12);
+  &:hover { background-image: var(--btn-primary-bg-hover); }
+}
+@utility knopf-zweit {
+  @apply knopf border-line-strong bg-surface text-ink-950 hover:border-brand hover:bg-[var(--bg-hover)];
+}
+@utility knopf-blau {
+  @apply knopf bg-brand-tint text-brand-strong hover:bg-brand-tint-2;
+}
+@utility knopf-hell {
+  @apply knopf bg-white text-brand-strong hover:bg-brand-tint;
+  box-shadow: 0 2px 8px rgba(6, 58, 51, 0.22);
+}
+@utility knopf-hell-rand {
+  @apply knopf border-white/55 bg-transparent text-white hover:bg-white/10;
+}
+@utility knopf-leise {
+  @apply knopf text-brand-strong hover:bg-[var(--bg-hover)];
+}
+@utility knopf-klein {
+  @apply h-8 px-3.5 text-[13px];
+}
+@utility knopf-gross {
+  @apply h-12 px-6 text-[16px];
+}
+@utility karte {
+  @apply bg-surface border border-line rounded-2xl;
+  box-shadow: var(--shadow-card);
+}
+@utility eingabe {
+  @apply w-full h-10 rounded-xl border border-line-strong bg-surface px-3.5 text-[14px] outline-none transition-colors placeholder:text-ink-400 hover:border-ink-300 focus:border-brand disabled:bg-sunken disabled:text-ink-600;
+  &:focus { box-shadow: 0 0 0 3px var(--brand-tint); }
+}
+@utility eingabe-klein {
+  @apply h-8 px-2.5 text-[13px] rounded-lg;
+}
+@utility label {
+  @apply block text-[13px] font-semibold text-ink-700 mb-1.5;
+}
+@utility marke {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 h-6 text-[12px] font-semibold whitespace-nowrap;
+}
+
+@layer components {
+  .tabelle { width: 100%; font-size: 14px; border-collapse: collapse; }
+  .tabelle th { text-align: left; font-size: 12px; font-weight: 700; color: var(--ink-500); padding: 0.7rem 1rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tabelle td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   .tabelle tbody tr:last-child td { border-bottom: 0; }
+  .tabelle tbody tr { transition: background-color 120ms var(--ease-standard); }
 
-  /* Schriftfeld: Rahmen in Tusche, Felder durch Haarlinien getrennt, wie unten rechts auf jeder Werkstattzeichnung */
-  .schriftfeld { background: var(--color-flaeche); border: 1.5px solid var(--color-tiefblau); border-radius: var(--radius-blatt); overflow: hidden; }
-  .schriftfeld-zelle { padding: 0.6rem 0.9rem 0.7rem; min-width: 0; }
-  .schriftfeld-zelle + .schriftfeld-zelle { border-left: 1px solid var(--color-linie-stark); }
-  .feldname { display: block; font-size: 12px; font-stretch: 85%; font-weight: 500; color: var(--color-hell); line-height: 1.2; margin-bottom: 0.2rem; }
+  /* Positionsnummer als Marken-Pill */
+  .ballon { display: inline-flex; align-items: center; justify-content: center; min-width: 2.25rem; height: 1.6rem; padding: 0 0.6rem; border-radius: 999px; background: var(--brand-tint); color: var(--brand-strong); font-family: var(--font-mono); font-size: 12px; font-weight: 600; white-space: nowrap; }
 
-  /* Positionsballon wie auf der Zeichnung */
-  .ballon { display: inline-grid; place-items: center; min-width: 2rem; height: 2rem; padding: 0 0.45rem; border: 1.5px solid var(--color-tiefblau); border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--color-tiefblau); background: var(--color-flaeche); font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-  /* Lesen läuft: Abtastlinie fährt über das Blatt */
+  /* Lesen läuft: Abtastlinie in Markenfarbe fährt über das Blatt */
   .abtasten { position: relative; overflow: hidden; }
-  .abtasten::after { content: ""; position: absolute; left: 0; right: 0; height: 28%; top: -28%; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-rot) 22%, transparent) 85%, var(--color-rot) 100%); animation: abtasten 2.4s cubic-bezier(.45,0,.55,1) infinite; }
+  .abtasten::after { content: ""; position: absolute; left: 0; right: 0; height: 30%; top: -30%; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--brand-light) 28%, transparent) 85%, var(--brand) 100%); animation: abtasten 2.2s var(--ease-standard) infinite; }
   @keyframes abtasten { to { top: 100%; } }
-  @media (prefers-reduced-motion: reduce) { .abtasten::after { animation: none; top: auto; bottom: 0; height: 3px; background: var(--color-rot); } }
+  @media (prefers-reduced-motion: reduce) { .abtasten::after { animation: none; top: auto; bottom: 0; height: 3px; background: var(--brand); } }
 
-  /* Kariertes Zeichenpapier für leere Flächen */
-  .raster { background-color: var(--color-flaeche); background-image: linear-gradient(var(--color-papier-2) 1px, transparent 1px), linear-gradient(90deg, var(--color-papier-2) 1px, transparent 1px); background-size: 16px 16px; }
+  /* Leere Fläche für Ablegen */
+  .raster { background: var(--brand-gradient-soft); }
+
+  .puls { position: relative; }
+  .puls::after { content: ""; position: absolute; inset: -3px; border-radius: 999px; border: 1.5px solid var(--brand); animation: puls 1.6s var(--ease-standard) infinite; }
+  @keyframes puls { from { transform: scale(0.7); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .puls::after { animation: none; opacity: 0; } }
 }
 
 @media print {
@@ -118,3 +213,6 @@ body {
 @media screen and (max-width: 860px) { .seite { zoom: 0.9; } }
 @media screen and (max-width: 740px) { .seite { zoom: 0.62; } }
 @media screen and (max-width: 520px) { .seite { zoom: 0.45; } }
+
+/* Angebotsblatt: Beträge in der Textschrift, Ziffern gleich breit */
+.seite .zahl { font-family: var(--font-sans); }

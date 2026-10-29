@@ -95,7 +95,7 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[16px] font-bold text-tiefblau">Aus Anfrage oder Zeichnung übernehmen</h2>
+          <h2 className="text-[16px] font-bold text-ink-950">Aus Anfrage oder Zeichnung übernehmen</h2>
           <p className="text-[12px] text-grau max-w-[640px]">
             Zeichnung, Skizze oder Baubeschreibung hochladen (PDF, Foto) oder den Text der Kundenanfrage einfügen. Die KI liest Maße, Dach, Wand, Tore und Leistungsumfang ab. Sie sehen jeden Wert mit Fundstelle und entscheiden, was übernommen wird.
           </p>
@@ -106,7 +106,7 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
       {!ergebnis && (
         <>
           <div className="grid md:grid-cols-2 gap-3">
-            <div className="rounded-[6px] border border-dashed border-linie-stark p-3 flex flex-col gap-2">
+            <div className="rounded-xl border border-dashed border-linie-stark p-3 flex flex-col gap-2">
               <input ref={input} type="file" multiple className="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(e) => e.target.files && hinzu(e.target.files)} />
               <button className="knopf-zweit knopf-klein self-start" onClick={() => input.current?.click()} disabled={!!laeuft}>Zeichnung wählen</button>
               <p className="text-[12px] text-hell">oder hierher ziehen. Bis zu 4 Dateien, die ersten 6 Seiten werden gelesen.</p>
@@ -130,7 +130,7 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
         </>
       )}
 
-      {fehler && <p className="rounded-[6px] bg-rot-hell text-rot text-[13px] px-3 py-2">{fehler}</p>}
+      {fehler && <p className="rounded-xl bg-rot-hell text-rot text-[13px] px-3 py-2">{fehler}</p>}
 
       {ergebnis && (
         <div className="space-y-3">
@@ -164,13 +164,13 @@ export function AnfrageEinlesen({ projektId, offen: offenStart, onUebernehmen }:
             </div>
           )}
           {ergebnis.v.fehlend.length > 0 && (
-            <div className="rounded-[6px] border border-linie p-3">
+            <div className="rounded-xl border border-linie p-3">
               <div className="text-[12px] font-medium schmal text-hell mb-1">Fehlt noch für ein belastbares Angebot</div>
               <ul className="text-[13px] list-disc pl-5 space-y-0.5">{ergebnis.v.fehlend.map((h) => <li key={h}>{h}</li>)}</ul>
             </div>
           )}
           {ergebnis.v.hinweise.length > 0 && (
-            <div className="rounded-[6px] border border-linie p-3">
+            <div className="rounded-xl border border-linie p-3">
               <div className="text-[12px] font-medium schmal text-hell mb-1">Hinweise</div>
               <ul className="text-[13px] list-disc pl-5 space-y-0.5">{ergebnis.v.hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </div>

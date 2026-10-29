@@ -150,7 +150,7 @@ export function AnsatzEditor({ ansatz, onAnsatz }: { ansatz: AnsatzGespeichert; 
               <div className="flex items-end pb-1"><Schalter an={t.montage} onAn={(v) => setT({ montage: v })} label="mit Montage" /></div>
             </div>
             {t.gelaender_seiten > 0 && (
-              <details className="rounded-[6px] border border-linie p-3">
+              <details className="rounded-xl border border-linie p-3">
                 <summary className="text-sm cursor-pointer">Geländer der Treppe</summary>
                 <div className="mt-3"><GelaenderFelder p={(t.gelaender as Partial<GelaenderParameter>) ?? {}} onP={(g) => setT({ gelaender: g as GelaenderParameter })} /></div>
               </details>
@@ -207,7 +207,7 @@ function BaugruppeFelder({ a, onA }: { a: BaugruppeAnsatz; onA: (a: BaugruppeAns
   const summe = teile.reduce((s, t) => s + (t.gewicht_kg ?? 0), 0);
   return (
     <div className="space-y-3">
-      <div className="rounded-[6px] border border-linie overflow-x-auto">
+      <div className="rounded-xl border border-linie overflow-x-auto">
         <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie flex">
           Stückliste je Stück{a.zeichnung ? ` · ${a.zeichnung}` : ''}
           <span className="ml-auto">

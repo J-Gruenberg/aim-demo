@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { CircleCheck, Download, FileStack, FileText, ScanLine, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { Stammdaten } from '@/lib/engine/stammdaten';
 import type { Ansatz } from '@/lib/engine/bauteile';
@@ -29,10 +30,10 @@ type Props = {
 type Filter = 'alle' | 'pruefen' | 'offen' | 'freigegeben' | 'fremd';
 
 const STATUS: Record<Position['status'], { label: string; text: string; punkt: string }> = {
-  offen: { label: 'Offen', text: 'text-grau', punkt: 'bg-linie-stark' },
-  berechnet: { label: 'Berechnet', text: 'text-tiefblau', punkt: 'bg-tiefblau' },
-  pruefen: { label: 'Prüfen', text: 'text-gelb', punkt: 'bg-[#e0a03a]' },
-  freigegeben: { label: 'Freigegeben', text: 'text-gruen', punkt: 'bg-gruen' },
+  offen: { label: 'Offen', text: 'text-ink-600', punkt: 'bg-ink-300' },
+  berechnet: { label: 'Berechnet', text: 'text-brand-strong', punkt: 'bg-brand' },
+  pruefen: { label: 'Prüfen', text: 'text-check', punkt: 'bg-check-dot' },
+  freigegeben: { label: 'Freigegeben', text: 'text-ok', punkt: 'bg-ok-dot' },
 };
 
 function groesse(b: number | null | undefined) {
@@ -478,116 +479,163 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
   const offen = pos.find((p) => p.id === offenId) ?? null;
   const freigebbar = pos.filter((p) => zaehlt(p) && p.status === 'berechnet' && (p.sicherheit ?? 0) >= 0.9 && p.ep !== null);
 
+  const kzHero: { label: string; wert: string; sub?: string; warn?: boolean }[] =
+    modus === 'zeichnung'
+      ? [
+          { label: 'Stahlgewicht', wert: `${zahl(zk.kg, 0)} kg`, sub: `${zahl(zk.teile, 0)} Teile` },
+          { label: 'Fertigung', wert: `${zahl(zk.h, 1)} h`, sub: zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je Tonne` : 'aus den Arbeitsgängen' },
+          { label: 'Preis je kg', wert: zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–', sub: 'Summe durch Gewicht' },
+          { label: 'KI-Kosten', wert: euro(kiKosten), sub: `Budget ${euro(projekt.ki_budget_eur, true)}` },
+        ]
+      : [
+          { label: 'Positionen', wert: `${s.anzahl}`, sub: `${s.frei} freigegeben` },
+          { label: 'Zu prüfen', wert: `${s.pruefen}`, sub: s.offen ? `${s.offen} noch offen` : 'alle kalkuliert' },
+          { label: 'Fremdgewerke', wert: `${s.fremd}`, sub: 'nicht in der Summe' },
+          { label: 'KI-Kosten', wert: euro(kiKosten), sub: `Budget ${euro(projekt.ki_budget_eur, true)}` },
+        ];
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-7">
       <ProjektKopf
         meta={meta}
         onMeta={metaSpeichern}
         art={modus === 'lv' ? 'Ausschreibung' : modus === 'zeichnung' ? 'Nach Zeichnung' : 'Treppe, Geländer, Stahlbau'}
-        stand={<span className="text-[13px] text-hell">{metaStand}</span>}
+        stand={metaStand}
         gesperrt={!darfSchreiben}
         kennzahlen={
-          <div className="grid grid-cols-2 lg:grid-cols-[1.7fr_1fr_1fr_1fr_1fr] gap-px bg-linie-stark">
-            <div className="col-span-2 lg:col-span-1 bg-tiefblau text-white px-5 py-4">
-              <span className="feldname text-white/60">Summe netto</span>
-              <div className="zahl breit text-[36px] font-bold leading-none mt-1.5">{euro(s.gesamt, true)}</div>
-              <div className="text-[13px] text-white/65 mt-2">davon freigegeben {euro(s.freigegeben, true)}</div>
+          <section aria-label="Summe und Kennzahlen" className="aim-hero grid min-w-0 gap-6 px-5 py-6 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:px-9">
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-white/75">Summe netto</p>
+              <p className="zahl mt-1 text-[40px] font-semibold leading-none tracking-[-0.02em] sm:text-[52px]">{euro(s.gesamt, true)}</p>
+              <p className="mt-3 text-[16px] text-white/85 sm:text-[18px] [&_b]:font-bold [&_b]:text-white">
+                {!s.anzahl ? (
+                  modus === 'zeichnung' ? 'Noch keine Positionen. Legen Sie unten Zeichnungen ab.' : 'Noch keine Positionen.'
+                ) : (
+                  <>
+                    <b>{s.anzahl}</b> {s.anzahl === 1 ? 'Position' : 'Positionen'}
+                    {s.pruefen ? <>, <b>{s.pruefen}</b> {s.pruefen === 1 ? 'wartet' : 'warten'} auf Ihre Prüfung.</> : ', alles geprüft.'}
+                    {s.freigegeben > 0 && <> Freigegeben: <b>{euro(s.freigegeben, true)}</b>.</>}
+                  </>
+                )}
+              </p>
+              <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/20 pt-5 sm:grid-cols-4">
+                {kzHero.map((k) => (
+                  <div key={k.label} className="min-w-0">
+                    <dt className="text-[13px] text-white/70">{k.label}</dt>
+                    <dd className="mt-0.5 text-[22px] font-extrabold leading-tight tracking-[-0.015em]">{k.wert}</dd>
+                    {k.sub && <dd className="truncate text-[12px] text-white/65">{k.sub}</dd>}
+                  </div>
+                ))}
+              </dl>
             </div>
-            {modus === 'zeichnung' ? (
-              <>
-                <Kz label="Stahlgewicht" wert={`${zahl(zk.kg, 0)} kg`} sub={`${s.anzahl} Positionen, ${zahl(zk.teile, 0)} Teile`} />
-                <Kz label="Fertigung" wert={`${zahl(zk.h, 1)} h`} sub={zk.kg > 0 ? `${zahl((zk.h / zk.kg) * 1000, 1)} h je Tonne` : 'aus den Arbeitsgängen'} />
-                <Kz label="Preis je kg" wert={zk.kg > 0 ? `${zahl(s.gesamt / zk.kg, 2)} €` : '–'} sub={!s.anzahl ? 'noch keine Positionen' : s.pruefen ? `${s.pruefen} zu prüfen` : 'nichts offen zu prüfen'} warn={s.pruefen > 0} />
-              </>
-            ) : (
-              <>
-                <Kz label="Positionen" wert={`${s.anzahl}`} sub={`${s.frei} freigegeben`} />
-                <Kz label="Zu prüfen" wert={`${s.pruefen}`} sub={s.offen ? `${s.offen} noch offen` : 'alle kalkuliert'} warn={s.pruefen > 0} />
-                <Kz label="Fremdgewerke" wert={`${s.fremd}`} sub="nicht in der Summe" />
-              </>
-            )}
-            <Kz label="KI-Kosten" wert={euro(kiKosten)} sub={`Budget ${euro(projekt.ki_budget_eur, true)}`} />
-          </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:flex-col lg:items-stretch">
+              <Link href={`/${modus}/${projekt.id}/angebot`} className="knopf-hell knopf-gross">
+                <FileText className="size-[18px]" strokeWidth={1.75} aria-hidden /> Angebot ansehen
+              </Link>
+              <a href={`/api/projekt/${projekt.id}/excel`} className="knopf-hell-rand knopf-gross">
+                <Download className="size-[18px]" strokeWidth={1.75} aria-hidden /> Als Excel
+              </a>
+              {hatGaeb && (
+                <a
+                  href={`/api/lv/${projekt.id}/x84`}
+                  className="knopf-hell-rand knopf-gross"
+                  title="Nur freigegebene Positionen erhalten einen Preis"
+                  onClick={(e) => {
+                    const ohne = pos.filter((p) => zaehlt(p) && p.status !== 'freigegeben').length;
+                    if (ohne && !confirm(`${ohne} ${ohne === 1 ? 'Position ist' : 'Positionen sind'} noch nicht freigegeben und ${ohne === 1 ? 'bleibt' : 'bleiben'} in der X84 ohne Preis. Trotzdem exportieren?`)) e.preventDefault();
+                  }}
+                >
+                  GAEB X84
+                </a>
+              )}
+            </div>
+          </section>
         }
-      >
-        <a href={`/api/projekt/${projekt.id}/excel`} className="knopf-zweit">Excel</a>
-        {hatGaeb && (
-          <a
-            href={`/api/lv/${projekt.id}/x84`}
-            className="knopf-zweit"
-            title="Nur freigegebene Positionen erhalten einen Preis"
-            onClick={(e) => {
-              const ohne = pos.filter((p) => zaehlt(p) && p.status !== 'freigegeben').length;
-              if (ohne && !confirm(`${ohne} ${ohne === 1 ? 'Position ist' : 'Positionen sind'} noch nicht freigegeben und ${ohne === 1 ? 'bleibt' : 'bleiben'} in der X84 ohne Preis. Trotzdem exportieren?`)) e.preventDefault();
-            }}
-          >
-            GAEB X84
-          </a>
-        )}
-        <Link href={`/${modus}/${projekt.id}/angebot`} className="knopf-primaer">Angebot ansehen</Link>
-      </ProjektKopf>
+      />
 
-      {meldung && <div role="status" className={`rounded-[6px] border-l-4 px-4 py-3 text-[14px] font-medium ${meldung.ok ? 'bg-gruen-hell border-gruen text-gruen' : 'bg-rot-hell border-rot text-rot'}`}>{meldung.text}</div>}
+      {meldung && (
+        <div role="status" className={`flex items-center gap-2.5 rounded-2xl px-4 py-3 text-[14px] font-semibold ${meldung.ok ? 'bg-ok-tint text-ok' : 'bg-signal-tint text-signal'}`}>
+          {meldung.ok ? <CircleCheck className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden /> : <TriangleAlert className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />}
+          {meldung.text}
+        </div>
+      )}
       {laeuft && (
-        <div role="status" className="rounded-[6px] border-l-4 border-tiefblau px-4 py-3 text-[14px] bg-blau-hell text-tiefblau flex items-center gap-3">
-          <span className="w-4 h-4 shrink-0 rounded-full border-2 border-tiefblau border-t-transparent animate-spin" />
+        <div role="status" className="flex items-center gap-3 rounded-2xl bg-brand-tint px-4 py-3 text-[14px] font-semibold text-brand-strong">
+          <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-brand border-t-transparent" />
           {laeuft}
         </div>
       )}
 
       {modus === 'zeichnung' && (
         <section
-          className="space-y-3"
+          aria-labelledby="zng"
+          className="flex min-w-0 flex-col gap-3"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
             if (e.dataTransfer.files.length) hochladen(e.dataTransfer.files);
           }}
         >
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="breit text-[19px] font-bold text-tiefblau">Zeichnungen</h2>
-              <p className="text-[14px] text-grau max-w-[68ch]">PDF, Scan oder Foto. AIM liest Stückliste, Bohrungen und Nähte und rechnet jede Position mit Ihren Kostenstellen.</p>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="zng" className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.01em]">
+              Zeichnungen
+              {dateien.length > 0 && <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-sunken px-2 font-mono text-[12px] font-medium text-ink-600">{dateien.length}</span>}
+            </h2>
             {darfSchreiben && (
               <div className="flex flex-wrap gap-2">
                 <input ref={dateiInput} type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.PDF,.PNG,.JPG,.JPEG" onChange={(e) => e.target.files && hochladen(e.target.files)} />
-                {dateien.length > 0 && <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>Zeichnungen hinzufügen</button>}
+                {dateien.length > 0 && (
+                  <button className="knopf-zweit" onClick={() => dateiInput.current?.click()} disabled={!!laeuft}>
+                    <Upload className="size-4" strokeWidth={1.75} aria-hidden /> Hinzufügen
+                  </button>
+                )}
                 {dateien.some((d) => d.art === 'zeichnung' && !pos.some((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`))) && (
-                  <button className="knopf-primaer" onClick={alleZeichnungenLesen} disabled={!!laeuft}>Alle lesen und kalkulieren</button>
+                  <button className="knopf-primaer" onClick={alleZeichnungenLesen} disabled={!!laeuft}>
+                    <ScanLine className="size-4" strokeWidth={1.75} aria-hidden /> Alle lesen und kalkulieren
+                  </button>
                 )}
               </div>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {dateien.map((d) => {
               const aus = pos.filter((p) => (p.quelle ?? '').startsWith(`zng:${d.id}:`));
               const n = aus.length;
               const nummer = (aus[0]?.ansatz as { zeichnung?: string } | null)?.zeichnung;
               const liest = liestId === d.id;
               return (
-                <article key={d.id} className="bg-flaeche border border-linie rounded-[6px] overflow-hidden flex flex-col">
-                  <button type="button" className={`relative aspect-[1.414] border-b border-linie bg-white ${liest ? 'abtasten' : ''}`} onClick={() => dateiOeffnen(d)} title="Zeichnung öffnen">
+                <article key={d.id} className="karte flex flex-col overflow-hidden">
+                  <button type="button" className={`relative aspect-[1.414] border-b border-line bg-white ${liest ? 'abtasten' : ''}`} onClick={() => dateiOeffnen(d)} title="Zeichnung öffnen">
                     {vorschau[d.id] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={vorschau[d.id]} alt={`Vorschau ${d.name}`} className="absolute inset-0 w-full h-full object-contain p-1.5" />
+                      <img src={vorschau[d.id]} alt={`Vorschau ${d.name}`} className="absolute inset-0 h-full w-full object-contain p-2" />
                     ) : (
                       <BlattPlatzhalter />
                     )}
-                    {n > 0 && <span className="absolute top-2 left-2 marke bg-tiefblau text-white">{n} {n === 1 ? 'Position' : 'Positionen'}</span>}
+                    {n > 0 && <span className="marke absolute left-3 top-3 h-[22px] bg-brand px-2 text-[11px] text-white">{n} {n === 1 ? 'Position' : 'Positionen'}</span>}
                   </button>
-                  <div className="p-3 flex-1 flex flex-col gap-2">
+                  <div className="flex flex-1 flex-col gap-3 p-4">
                     <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-tinte truncate">{nummer ?? d.name}</div>
-                      <div className="text-[12px] text-hell truncate">{nummer ? `${d.name}, ` : ''}{groesse(d.groesse)}{d.seiten ? `, ${d.seiten} ${d.seiten === 1 ? 'Blatt' : 'Blätter'}` : ''}</div>
+                      <div className="truncate text-[15px] font-bold text-ink-950">{nummer ?? d.name}</div>
+                      <div className="truncate text-[12px] text-ink-500">{nummer ? `${d.name}, ` : ''}{groesse(d.groesse)}{d.seiten ? `, ${d.seiten} ${d.seiten === 1 ? 'Blatt' : 'Blätter'}` : ''}</div>
                     </div>
                     <div className="mt-auto flex items-center gap-1">
-                      <span className={`text-[13px] font-semibold ${liest ? 'text-rot' : n ? 'text-gruen' : 'text-hell'}`}>{liest ? 'Wird gelesen …' : n ? 'Gelesen' : 'Noch nicht gelesen'}</span>
+                      {liest ? (
+                        <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-brand-strong"><span className="puls size-2 rounded-full bg-brand" />Wird gelesen</span>
+                      ) : n ? (
+                        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ok"><span className="size-2 rounded-full bg-ok-dot" />Gelesen</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-600"><span className="size-2 rounded-full bg-ink-300" />Noch nicht gelesen</span>
+                      )}
                       <span className="ml-auto" />
                       {darfSchreiben && d.art === 'zeichnung' && !liest && (
                         <button className={n ? 'knopf-leise knopf-klein' : 'knopf-blau knopf-klein'} disabled={!!laeuft} onClick={() => zeichnungLesen(d)}>{n ? 'Neu lesen' : 'Lesen'}</button>
                       )}
-                      {darfSchreiben && !liest && <button className="knopf-leise knopf-klein" disabled={!!laeuft} onClick={() => dateiLoeschen(d)} aria-label={`${d.name} entfernen`}>Entfernen</button>}
+                      {darfSchreiben && !liest && (
+                        <button className="grid size-8 place-items-center rounded-full text-ink-500 hover:bg-[var(--bg-hover)] hover:text-signal" disabled={!!laeuft} onClick={() => dateiLoeschen(d)} aria-label={`${d.name} entfernen`} title="Entfernen">
+                          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -596,34 +644,36 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             {darfSchreiben && (
               <button
                 type="button"
-                className="raster rounded-[6px] border-[1.5px] border-dashed border-tusche/50 hover:border-tiefblau min-h-[220px] flex flex-col items-center justify-center gap-2 p-6 text-center transition-colors"
+                className="flex min-h-[250px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-line-strong bg-surface/60 p-6 text-center transition-colors hover:border-brand hover:bg-brand-tint/40"
                 onClick={() => dateiInput.current?.click()}
                 disabled={!!laeuft}
               >
-                <span className="ballon text-[16px]">+</span>
-                <span className="text-[15px] font-semibold text-tiefblau">Zeichnungen ablegen</span>
-                <span className="text-[13px] text-grau">Hierher ziehen oder klicken.<br />Mehrere Dateien auf einmal gehen.</span>
+                <span className="grid size-12 place-items-center rounded-full bg-brand-tint text-brand-strong"><Upload className="size-5" strokeWidth={1.75} aria-hidden /></span>
+                <span className="text-[16px] font-bold text-ink-950">Zeichnungen ablegen</span>
+                <span className="text-[14px] text-ink-600">PDF, Scan oder Foto hierher ziehen<br />oder klicken. Mehrere gehen auf einmal.</span>
               </button>
             )}
             {darfSchreiben && dateien.length === 0 && (
               <button
                 type="button"
-                className="rounded-[6px] bg-tiefblau text-white min-h-[220px] flex flex-col justify-between p-5 text-left hover:bg-tiefblau-2 transition-colors"
+                className="flex min-h-[250px] flex-col items-start justify-between gap-4 rounded-2xl border border-brand-tint-2 p-6 text-left transition-[transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-float)]"
+                style={{ background: 'var(--brand-gradient-soft)' }}
                 disabled={!!laeuft}
                 onClick={beispieleLaden}
               >
-                <span className="text-[13px] text-white/60 schmal">Keine Zeichnung zur Hand?</span>
+                <span className="grid size-12 place-items-center rounded-full bg-white text-brand-strong shadow-[var(--shadow-card)]"><FileStack className="size-5" strokeWidth={1.75} aria-hidden /></span>
                 <span>
-                  <span className="block breit text-[20px] font-bold leading-tight">Mit Beispielzeichnungen ausprobieren</span>
-                  <span className="block text-[14px] text-white/70 mt-2">Stütze, Träger und Konsole. AIM liest alle drei und kalkuliert, in rund zwei Minuten.</span>
+                  <span className="block text-[18px] font-extrabold leading-tight tracking-[-0.01em] text-ink-950">Mit Beispielzeichnungen ausprobieren</span>
+                  <span className="mt-1.5 block text-[14px] text-ink-600">Stütze, Träger und Konsole. AIM liest alle drei und kalkuliert, in rund zwei Minuten.</span>
                 </span>
+                <span className="knopf-primaer knopf-klein pointer-events-none">Beispiel laden</span>
               </button>
             )}
           </div>
           {hinweise.length > 0 && (
-            <details className="rounded-[6px] border border-linie bg-flaeche px-4 py-2.5">
-              <summary className="text-[14px] cursor-pointer font-semibold text-tiefblau">Hinweise aus den Zeichnungen ({hinweise.length})</summary>
-              <ul className="mt-2 list-disc pl-5 text-[13px] text-grau space-y-0.5">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
+            <details className="karte px-5 py-3.5">
+              <summary className="cursor-pointer text-[14px] font-bold text-ink-950">Hinweise aus den Zeichnungen ({hinweise.length})</summary>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[13px] text-ink-600">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </details>
           )}
         </section>
@@ -680,7 +730,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
             </div>
           )}
           {hinweise.length > 0 && (
-            <details className="mt-3 rounded-[6px] bg-papier px-3 py-2">
+            <details className="mt-3 rounded-xl bg-papier px-3 py-2">
               <summary className="text-sm cursor-pointer font-medium">Hinweise aus Vorbemerkungen ({hinweise.length})</summary>
               <ul className="mt-2 list-disc pl-5 text-[13px] text-grau space-y-0.5">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>
             </details>
@@ -709,7 +759,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           {berichtOffen && (
             <div className="space-y-3">
               {abgleich && (
-                <div className="rounded-[6px] border border-linie p-3 space-y-2 text-[13px]">
+                <div className="rounded-xl border border-linie p-3 space-y-2 text-[13px]">
                   <div className="text-[12px] font-medium schmal text-tiefblau font-medium">Plan gegen LV · {abgleich.plaene.join(', ')}</div>
                   <p>{abgleich.zusammenfassung}</p>
                   {abgleich.fehlt_im_lv.length > 0 && (
@@ -744,11 +794,14 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
         </section>
       )}
 
-      <section className="space-y-3">
-        {modus === 'zeichnung' && <h2 className="breit text-[19px] font-bold text-tiefblau">Positionen</h2>}
+      <section aria-labelledby="pos" className="flex min-w-0 flex-col gap-3">
+        <h2 id="pos" className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.01em]">
+          Positionen
+          {pos.length > 0 && <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-brand px-2 font-mono text-[12px] font-medium text-white">{pos.length}</span>}
+        </h2>
         <div className="karte overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-linie">
-          <div className="flex rounded-[6px] border border-linie-stark overflow-hidden text-[13px]">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+          <div className="flex rounded-full bg-sunken p-1 text-[13px]" role="tablist" aria-label="Positionen filtern">
             {(
               [
                 ['alle', `Alle ${pos.length}`],
@@ -758,10 +811,10 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 ['fremd', `Fremd ${s.fremd}`],
               ] as [Filter, string][]
             ).map(([f, l]) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 whitespace-nowrap border-l border-linie first:border-l-0 ${filter === f ? 'bg-tiefblau text-white font-semibold' : 'text-grau hover:text-tiefblau bg-flaeche'}`}>{l}</button>
+              <button key={f} role="tab" aria-selected={filter === f} onClick={() => setFilter(f)} className={`h-8 whitespace-nowrap rounded-full px-3.5 font-semibold transition-colors ${filter === f ? 'bg-surface text-ink-950 shadow-[0_1px_3px_rgba(15,28,26,0.12)]' : 'text-ink-600 hover:text-ink-950'}`}>{l}</button>
             ))}
           </div>
-          <label className="flex items-center gap-1.5 text-[13px] text-grau ml-2"><input type="checkbox" checked={unsicherZuerst} onChange={(e) => setUnsicherZuerst(e.target.checked)} /> unsichere zuerst</label>
+          <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-600"><input type="checkbox" className="accent-[var(--brand)]" checked={unsicherZuerst} onChange={(e) => setUnsicherZuerst(e.target.checked)} /> unsichere zuerst</label>
           <div className="ml-auto flex flex-wrap gap-2">
             {modus === 'lv' && darfSchreiben && (
               <>
@@ -785,7 +838,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
           </div>
         </div>
         {pos.length === 0 ? (
-          <div className="p-10 text-center text-grau text-sm">
+          <div className="px-6 py-12 text-center text-[15px] text-ink-600">
             {modus === 'lv'
               ? 'Noch keine Positionen. Laden Sie oben das LV oder eine Zeichnung hoch und klicken Sie auf „Positionen lesen“ bzw. „Positionen aus Zeichnung“.'
               : modus === 'zeichnung'
@@ -811,11 +864,11 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                 {sichtbar.map((p) => {
                   const fremd = p.typ === 'fremd' || p.ansatz?.ausgeblendet;
                   return (
-                    <tr key={p.id} className={`cursor-pointer hover:bg-blau-hell/40 ${fremd ? 'opacity-50' : ''} ${offenId === p.id ? 'bg-blau-hell/60' : ''}`} onClick={() => setOffenId(p.id)}>
+                    <tr key={p.id} className={`cursor-pointer hover:bg-[var(--bg-hover)] ${fremd ? 'opacity-50' : ''} ${offenId === p.id ? 'bg-brand-tint/50' : ''}`} onClick={() => setOffenId(p.id)}>
                       <td className="whitespace-nowrap">{modus === 'lv' ? <span className="zahl text-[13px] text-grau">{p.oz}</span> : <span className="ballon">{p.oz}</span>}</td>
                       <td>
-                        <div className="text-[14px] font-semibold text-tinte line-clamp-2">{p.kurztext}</div>
-                        <div className="text-[12px] text-hell flex flex-wrap gap-x-2 mt-0.5">
+                        <div className="line-clamp-2 text-[15px] font-bold text-ink-950">{p.kurztext}</div>
+                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[13px] text-ink-500">
                           {p.ansatz?.bereich && <span className="truncate max-w-[340px]">{p.ansatz.bereich}</span>}
                           {p.ansatz?.art === 'baugruppe' && <BaugruppeKurz p={p} stamm={stamm} />}
                           {p.ansatz?.bedarf && <span className="text-gelb">Bedarfsposition</span>}
@@ -829,7 +882,7 @@ export function PositionsEditor({ modus, projekt, positionen: start, dateien: dS
                       <td className="text-right zahl text-[14px] font-semibold whitespace-nowrap">{euro(p.gp)}</td>
                       <td>
                         <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${STATUS[p.status].text}`}><span className={`w-2 h-2 rounded-full ${STATUS[p.status].punkt}`} />{STATUS[p.status].label}</span>
-                        {pruefePosition(p).some((f) => f.stufe === 'warnung') && <span className="ml-1 text-gelb" title={pruefePosition(p).map((f) => f.text).join(' ')}>⚠</span>}
+                        {pruefePosition(p).some((f) => f.stufe === 'warnung') && <TriangleAlert className="ml-1 inline size-3.5 text-check" strokeWidth={2} aria-label={pruefePosition(p).map((f) => f.text).join(' ')} />}
                         {p.sicherheit !== null && p.status !== 'offen' && p.quelle !== 'hand' && <div className="text-[12px] text-hell mt-0.5">Sicherheit {Math.round((p.sicherheit ?? 0) * 100)} %</div>}
                       </td>
                     </tr>
@@ -871,25 +924,14 @@ function BaugruppeKurz({ p, stamm }: { p: Position; stamm: Stammdaten }) {
   );
 }
 
-function Kz({ label, wert, sub, warn = false }: { label: string; wert: string; sub?: string; warn?: boolean }) {
-  return (
-    <div className={`px-4 py-4 ${warn ? 'bg-gelb-hell' : 'bg-flaeche'}`}>
-      <span className="feldname">{label}</span>
-      <div className="zahl text-[23px] font-semibold leading-tight mt-1 text-tiefblau">{wert}</div>
-      {sub && <div className={`text-[13px] mt-1 ${warn ? 'text-gelb font-semibold' : 'text-grau'}`}>{sub}</div>}
-    </div>
-  );
-}
-
 /** Leeres Zeichnungsblatt mit Rahmen und Schriftfeld, solange es noch kein Vorschaubild gibt. */
 function BlattPlatzhalter() {
   return (
-    <svg className="absolute inset-0 w-full h-full raster" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet" aria-hidden>
-      <rect x="10" y="8" width="277" height="194" fill="none" stroke="#2a4a6b" strokeWidth="0.8" />
-      <rect x="187" y="167" width="100" height="35" fill="#fff" stroke="#2a4a6b" strokeWidth="0.8" />
-      <path d="M187 179 H287 M187 191 H287 M227 167 V202" stroke="#2a4a6b" strokeWidth="0.5" />
-      <path d="M60 60 V150 M48 60 H72 M48 150 H72" stroke="#7d8b99" strokeWidth="1.4" />
-      <path d="M100 120 H170" stroke="#7d8b99" strokeWidth="1.4" />
+    <svg className="absolute inset-0 h-full w-full bg-sunken" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet" aria-hidden>
+      <rect x="14" y="12" width="269" height="186" rx="3" fill="#fff" stroke="#CBD5D2" strokeWidth="0.8" />
+      <rect x="187" y="163" width="92" height="31" fill="none" stroke="#CBD5D2" strokeWidth="0.8" />
+      <path d="M187 174 H279 M187 184 H279 M225 163 V194" stroke="#D3DBD8" strokeWidth="0.6" />
+      <path d="M50 70 H160 M50 80 H160" stroke="#B4C0BC" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -955,7 +997,7 @@ function PositionsDetail({
           ) : (
             <div>
               {p.ansatz?.bereich && <div className="text-[11px] text-hell mb-1">{p.ansatz.bereich}</div>}
-              <p className="text-[13px] whitespace-pre-line leading-relaxed max-h-56 overflow-y-auto rounded-[6px] bg-papier p-3">{p.langtext || p.kurztext}</p>
+              <p className="text-[13px] whitespace-pre-line leading-relaxed max-h-56 overflow-y-auto rounded-xl bg-papier p-3">{p.langtext || p.kurztext}</p>
             </div>
           )}
 
@@ -965,27 +1007,27 @@ function PositionsDetail({
           </div>
 
           {p.begruendung && (
-            <div className="rounded-[6px] border border-tiefblau/20 bg-blau-hell/50 p-3">
+            <div className="rounded-xl border border-tiefblau/20 bg-blau-hell/50 p-3">
               <div className="text-[12px] font-medium schmal text-tiefblau font-medium mb-1">Vorschlag der KI {p.sicherheit !== null ? `· Sicherheit ${Math.round((p.sicherheit ?? 0) * 100)} %` : ''}</div>
               <p className="text-[13px] leading-relaxed">{p.begruendung}</p>
             </div>
           )}
           {pruefePosition(p).length > 0 && (
-            <div className="rounded-[6px] bg-gelb-hell p-3 text-[13px] text-gelb space-y-1">
+            <div className="rounded-xl bg-gelb-hell p-3 text-[13px] text-gelb space-y-1">
               {pruefePosition(p).map((f, i) => <div key={i}>{f.stufe === 'warnung' ? '⚠ ' : ''}{f.text}</div>)}
             </div>
           )}
           {p.ansatz?.gleich_wie && <div className="text-[12px] text-grau">Gleiche Leistung wie OZ {p.ansatz.gleich_wie}, Ansatz übernommen.</div>}
           {!fremd && <ArchivListe p={p} onUebernehmen={(ep) => setAnsatz({ ...ansatz, ep_hand: ep })} darfSchreiben={darfSchreiben} />}
           {fremd && (
-            <div className="rounded-[6px] bg-gelb-hell p-3 text-[13px] text-gelb">
+            <div className="rounded-xl bg-gelb-hell p-3 text-[13px] text-gelb">
               Als Fremdgewerk erkannt, zählt nicht zur Summe. Wenn Sie die Leistung doch anbieten: unten einen Ansatz wählen und freigeben.
             </div>
           )}
 
           <AnsatzEditor ansatz={ansatz} onAnsatz={setAnsatz} />
 
-          <div className="rounded-[6px] border border-linie">
+          <div className="rounded-xl border border-linie">
             <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie">Rechenweg je Einheit</div>
             {istBe ? (
               <p className="px-3 py-2 text-[13px] text-grau">Prozentsatz der übrigen Summe, wird nach dem Speichern aktualisiert.</p>
@@ -1053,7 +1095,7 @@ function ArchivListe({ p, onUebernehmen, darfSchreiben }: { p: Position; onUeber
     setLaedt(false);
   }
   return (
-    <div className="rounded-[6px] border border-linie">
+    <div className="rounded-xl border border-linie">
       <div className="px-3 py-2 text-[12px] font-medium schmal text-hell border-b border-linie flex items-center">
         Ähnlich aus Ihren Angeboten
         {!treffer && <button className="ml-auto knopf-leise knopf-klein" onClick={suchen} disabled={laedt}>{laedt ? 'Suche …' : 'Archiv durchsuchen'}</button>}
